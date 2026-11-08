@@ -51,6 +51,36 @@ jobs:
         # ok: gha-untrusted-input-to-github-env
         run: echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
 
+      - name: Untrusted value printed, constant written
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+        # ok: gha-untrusted-input-to-github-env
+        run: |
+          echo "Title: $ISSUE_TITLE"
+          echo "SAFE=value" >> "$GITHUB_ENV"
+
+      - name: Validated before writing
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        # ok: gha-untrusted-input-to-github-env
+        run: |
+          [[ "$HEAD_REF" =~ ^[A-Za-z0-9._/-]+$ ]] || exit 1
+          echo "BRANCH=$HEAD_REF" >> "$GITHUB_ENV"
+
+      - name: Known false positive, a different variable is written
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+        # todook: gha-untrusted-input-to-github-env
+        run: |
+          echo "Title: $ISSUE_TITLE"
+          echo "RUN=$GITHUB_RUN_ID" >> "$GITHUB_ENV"
+
+      - name: Known false positive, key is a substring of another variable
+        env:
+          TITLE: ${{ github.event.issue.title }}
+        # todook: gha-untrusted-input-to-github-env
+        run: echo "SUBTITLE=$SUBTITLE" >> "$GITHUB_ENV"
+
   job-env:
     runs-on: ubuntu-latest
     env:

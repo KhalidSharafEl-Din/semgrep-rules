@@ -89,19 +89,31 @@ rules:
           - metavariable-regex:
               metavariable: $PREFIX
               regex: ^https?://[^/{}]+/
-      # So does a base URL from server-side configuration: a settings or config
-      # attribute, an environment variable, or an UPPER_CASE module constant.
+      # So does a base URL from server-side configuration (a settings or config
+      # attribute, an environment variable, or an UPPER_CASE module constant), as long
+      # as a literal "/" follows it. Without the slash, input such as "@evil.example"
+      # or a full URL passed to urljoin() can change the host.
       - patterns:
           - pattern-either:
-              - pattern: f"{$BASE}..."
-              - pattern: $BASE + $REST
-              - pattern: urljoin($BASE, ...)
-              - pattern: urllib.parse.urljoin($BASE, ...)
-              - pattern: $TEMPLATE.format($BASE, ...)
+              - patterns:
+                  - pattern: f"{$BASE}$SEP{...}..."
+                  - metavariable-regex:
+                      metavariable: $SEP
+                      regex: ^/
+              - patterns:
+                  - pattern: $BASE + "$SEP" + $REST
+                  - metavariable-regex:
+                      metavariable: $SEP
+                      regex: ^/
+              - patterns:
+                  - pattern: '"$FMT".format($BASE, ...)'
+                  - metavariable-regex:
+                      metavariable: $FMT
+                      regex: ^\{\}/
           - metavariable-pattern:
               metavariable: $BASE
               language: generic
-              pattern-regex: \A((settings|config|app_settings|cfg)\.[A-Za-z_]\w*|os\.(environ|getenv)|[A-Z][A-Z0-9_]*(?![\w.]))
+              pattern-regex: \A((settings|config|app_settings|cfg)\.[A-Za-z_]\w*|os\.(environ|getenv)(\W.*)?|[A-Z][A-Z0-9_]*)\Z
     pattern-sinks:
       - patterns:
           - pattern-either:
@@ -115,7 +127,13 @@ rules:
                   - metavariable-regex:
                       metavariable: $METHOD
                       regex: ^(get|post|put|patch|delete|head|options|stream)$
-              - pattern: $LIB.request($VERB, $URL, ...)
+              - patterns:
+                  - pattern-either:
+                      - pattern: $LIB.request($VERB, $URL, ...)
+                      - pattern: $LIB.request(..., url=$URL, ...)
+                  - metavariable-regex:
+                      metavariable: $LIB
+                      regex: ^(requests|httpx)$
               - pattern: urllib.request.urlopen($URL, ...)
               - pattern: urllib.request.Request($URL, ...)
               - patterns:
@@ -141,4 +159,5 @@ rules:
                               metavariable: $METHOD
                               regex: ^(get|post|put|patch|delete|head|options|stream)$
                       - pattern: $CLIENT.request($VERB, $URL, ...)
+                      - pattern: $CLIENT.request(..., url=$URL, ...)
           - focus-metavariable: $URL

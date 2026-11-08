@@ -64,8 +64,29 @@ function synchronous(req) {
   return jwt.verify(req.cookies.session, PUBLIC_KEY, { algorithms: ['RS256'] });
 }
 
+function logsOnly(req, res, next) {
+  // ruleid: jsonwebtoken-verify-callback-ignores-error
+  jwt.verify(req.cookies.session, PUBLIC_KEY, (err, payload) => {
+    console.log(err);
+    req.user = payload;
+    next();
+  });
+}
+
+function ifElse(req, res, next) {
+  // ok: jsonwebtoken-verify-callback-ignores-error
+  jwt.verify(req.cookies.session, PUBLIC_KEY, (err, payload) => {
+    if (err) {
+      res.status(401).end();
+    } else {
+      req.user = payload;
+      next();
+    }
+  });
+}
+
 app.get('/me', requireUser, (req, res) => res.json(req.user));
 app.get('/session', sessionInfo);
 app.get('/admin', requireAdmin, (req, res) => res.send('ok'));
 
-module.exports = { requireUserChecked, forwardError, payloadGuard, synchronous, checkToken };
+module.exports = { logsOnly, ifElse, requireUserChecked, forwardError, payloadGuard, synchronous, checkToken };

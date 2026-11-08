@@ -9,6 +9,7 @@ const app = express();
 app.use(express.json());
 
 const searchSchema = z.object({ status: z.enum(['open', 'closed']) });
+const looseSchema = z.object({ status: z.string() }).passthrough();
 
 app.post('/login', async (req, res) => {
   // ruleid: express-mongodb-operator-injection
@@ -113,6 +114,42 @@ app.post('/login-normalised', async (req, res) => {
   // ok: express-mongodb-operator-injection
   const user = await User.findOne({ email: req.body.email.toLowerCase().trim() });
   res.json({ found: Boolean(user) });
+});
+
+app.patch('/reviews-logged', async (req, res) => {
+  if (typeof req.body.id !== 'string') {
+    console.warn('unexpected id type');
+  }
+  // ruleid: express-mongodb-operator-injection
+  await db.collection('reviews').update({ _id: req.body.id }, { $set: { seen: true } });
+  res.sendStatus(204);
+});
+
+app.post('/lookup-object', async (req, res) => {
+  const email = req.body.email;
+  if (typeof email === 'object') {
+    // ruleid: express-mongodb-operator-injection
+    return res.json(await User.findOne({ email }));
+  }
+  res.status(400).end();
+});
+
+app.post('/search-loose', async (req, res) => {
+  const filter = looseSchema.parse(req.body);
+  // ruleid: express-mongodb-operator-injection
+  res.json(await db.collection('orders').find(filter).toArray());
+});
+
+app.post('/search-json', async (req, res) => {
+  const filter = JSON.parse(req.body.filter);
+  // ruleid: express-mongodb-operator-injection
+  res.json(await db.collection('orders').find(filter).toArray());
+});
+
+app.post('/search-strict', async (req, res) => {
+  const filter = searchSchema.parse(req.body);
+  // ok: express-mongodb-operator-injection
+  res.json(await db.collection('orders').find(filter).toArray());
 });
 
 module.exports = app;

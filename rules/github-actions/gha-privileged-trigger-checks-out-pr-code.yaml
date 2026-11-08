@@ -37,8 +37,10 @@ rules:
         refs built from `github.event.number` or `github.event.issue.number`, the
         `issue_comment` trigger used by "/test" comment bots, a `repository:` input
         pointing at the fork, and checkouts done in a `run:` step with `gh pr checkout`
-        or `git fetch ... pull/...`. This rule covers those and the cases the community
-        rules cover, so expect duplicate findings if you run both.
+        or `git fetch ... pull/...`. It also reports the head, merge and
+        `workflow_run` refs the community rules report, so expect duplicate findings if
+        you run both. Unlike those rules, it does not report a checkout of the base
+        branch (`github.event.pull_request.base.*`).
     patterns:
       - pattern-either:
           - pattern-inside: |
@@ -78,9 +80,11 @@ rules:
                     - pattern: github.event.pull_request.number
                     - pattern: github.event.pull_request.head
                     - pattern: github.head_ref
+                    - pattern: github.event.pull_request.merge_commit_sha
                     - pattern: github.event.workflow_run.head_sha
                     - pattern: github.event.workflow_run.head_branch
                     - pattern: github.event.workflow_run.head_repository
+                    - pattern: github.event.workflow_run.pull_requests
           - patterns:
               - pattern: "run: $SCRIPT"
               - metavariable-pattern:

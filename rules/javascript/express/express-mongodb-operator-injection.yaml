@@ -54,8 +54,40 @@ rules:
               metavariable: $STRING_METHOD
               regex: ^(toLowerCase|toUpperCase|trim|trimStart|trimEnd|normalize|toLocaleLowerCase|toLocaleUpperCase)$
       - pattern: "`...`"
-      - pattern: $SCHEMA.parse(...)
-      - pattern: $SCHEMA.safeParse(...)
+      # Schema parsers drop unknown keys and check types, unless the schema keeps
+      # unknown keys (zod passthrough, loose or catchall, Joi unknown or allowUnknown).
+      - patterns:
+          - pattern-either:
+              - pattern: $SCHEMA.parse(...)
+              - pattern: $SCHEMA.safeParse(...)
+              - pattern: $SCHEMA.parseAsync(...)
+              - pattern: $SCHEMA.validateAsync(...)
+          - pattern-not: JSON.parse(...)
+          - pattern-not: "$SCHEMA.validateAsync($INPUT, {..., allowUnknown: true, ...})"
+          - pattern-not-inside: |
+              $SCHEMA = $Z.$BUILD(...).passthrough(...)
+              ...
+          - pattern-not-inside: |
+              $SCHEMA = $Z.$BUILD(...).$MORE(...).passthrough(...)
+              ...
+          - pattern-not-inside: |
+              $SCHEMA = $Z.$BUILD(...).loose(...)
+              ...
+          - pattern-not-inside: |
+              $SCHEMA = $Z.$BUILD(...).$MORE(...).loose(...)
+              ...
+          - pattern-not-inside: |
+              $SCHEMA = $Z.$BUILD(...).catchall(...)
+              ...
+          - pattern-not-inside: |
+              $SCHEMA = $Z.$BUILD(...).$MORE(...).catchall(...)
+              ...
+          - pattern-not-inside: |
+              $SCHEMA = $Z.$BUILD(...).unknown(...)
+              ...
+          - pattern-not-inside: |
+              $SCHEMA = $Z.$BUILD(...).$MORE(...).unknown(...)
+              ...
       - pattern: sanitize(...)
       - pattern: $MONGO_SANITIZE.sanitize(...)
       - pattern: mongoSanitize(...)
@@ -82,15 +114,90 @@ rules:
           - pattern-not-inside: "$COLLECTION.$METHOD($VALUES, {..., where: $WHERE, ...}, ...)"
           # A one-argument update() is a Sequelize or Mongoose instance update, not a filter.
           - pattern-not-inside: $COLLECTION.update($ONLY_ARGUMENT)
-          # A typeof check that rejects non-strings before the query is a fix.
+          # A typeof check is a fix when it rejects anything that is not a string,
+          # number or boolean before the query, or wraps the query in a positive check.
           - pattern-not-inside: |
-              if (typeof $VALUE !== $TYPE) { ... }
+              if (typeof $VALUE !== "string") { ... return ...; }
               ...
           - pattern-not-inside: |
-              if (typeof $VALUE != $TYPE) { ... }
+              if (typeof $VALUE !== "string") { ... throw $ERROR; }
               ...
           - pattern-not-inside: |
-              if (typeof $VALUE === $TYPE) { ... }
+              if (typeof $VALUE !== "string") return ...;
+              ...
           - pattern-not-inside: |
-              if (typeof $VALUE == $TYPE) { ... }
+              if (typeof $VALUE !== "string") throw $ERROR;
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE != "string") { ... return ...; }
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE != "string") { ... throw $ERROR; }
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE != "string") return ...;
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE != "string") throw $ERROR;
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE === "string") { ... }
+          - pattern-not-inside: |
+              if (typeof $VALUE == "string") { ... }
+          - pattern-not-inside: |
+              if (typeof $VALUE !== "number") { ... return ...; }
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE !== "number") { ... throw $ERROR; }
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE !== "number") return ...;
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE !== "number") throw $ERROR;
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE != "number") { ... return ...; }
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE != "number") { ... throw $ERROR; }
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE != "number") return ...;
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE != "number") throw $ERROR;
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE === "number") { ... }
+          - pattern-not-inside: |
+              if (typeof $VALUE == "number") { ... }
+          - pattern-not-inside: |
+              if (typeof $VALUE !== "boolean") { ... return ...; }
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE !== "boolean") { ... throw $ERROR; }
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE !== "boolean") return ...;
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE !== "boolean") throw $ERROR;
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE != "boolean") { ... return ...; }
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE != "boolean") { ... throw $ERROR; }
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE != "boolean") return ...;
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE != "boolean") throw $ERROR;
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE === "boolean") { ... }
+          - pattern-not-inside: |
+              if (typeof $VALUE == "boolean") { ... }
           - focus-metavariable: $VALUE

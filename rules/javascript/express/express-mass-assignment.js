@@ -9,6 +9,7 @@ const Joi = require('joi');
 const { Invoice } = require('./sequelize-models');
 
 const noteSchema = Joi.object({ text: Joi.string().max(200) });
+const openProfileSchema = z.object({ name: z.string() }).passthrough();
 
 const prisma = new PrismaClient();
 const router = express.Router();
@@ -109,6 +110,32 @@ router.put('/invoices/:id', async (req, res) => {
 router.post('/notes', async (req, res) => {
   const note = await noteSchema.validateAsync(req.body);
   // ok: express-mass-assignment
+  await prisma.note.create({ data: note });
+  res.sendStatus(201);
+});
+
+router.patch('/users/:id/set', async (req, res) => {
+  // ruleid: express-mass-assignment
+  await User.updateOne({ _id: req.user.id }, { $set: req.body });
+  res.sendStatus(204);
+});
+
+router.patch('/users/:id/set-name', async (req, res) => {
+  // ok: express-mass-assignment
+  await User.updateOne({ _id: req.user.id }, { $set: { name: String(req.body.name) } });
+  res.sendStatus(204);
+});
+
+router.patch('/profile-open', async (req, res) => {
+  const data = openProfileSchema.parse(req.body);
+  // ruleid: express-mass-assignment
+  await prisma.profile.update({ where: { userId: req.user.id }, data });
+  res.sendStatus(204);
+});
+
+router.post('/notes-open', async (req, res) => {
+  const note = await noteSchema.validateAsync(req.body, { allowUnknown: true });
+  // ruleid: express-mass-assignment
   await prisma.note.create({ data: note });
   res.sendStatus(201);
 });

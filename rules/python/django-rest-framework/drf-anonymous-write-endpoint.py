@@ -90,3 +90,11 @@ class InvoiceBrowser(viewsets.ModelViewSet):
     http_method_names = ["get", "head", "options"]
     # ok: drf-anonymous-write-endpoint
     permission_classes = [AllowAny]
+
+
+# ruleid: drf-anonymous-write-endpoint
+@api_view(["DELETE"])
+@permission_classes(())
+def purge_profile(request, pk):
+    Profile.objects.filter(pk=pk).delete()
+    return Response(status=204)

@@ -62,6 +62,24 @@ jobs:
         # ok: gha-privileged-trigger-checks-out-pr-code
         run: gh pr edit "$PR_NUMBER" --add-label needs-review
 ---
+name: deploy-preview
+on:
+  workflow_run:
+    workflows: [pr-ci]
+    types: [completed]
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # ruleid: gha-privileged-trigger-checks-out-pr-code
+          ref: ${{ github.event.workflow_run.pull_requests[0].head.sha }}
+      - uses: actions/checkout@v4
+        with:
+          # ruleid: gha-privileged-trigger-checks-out-pr-code
+          ref: ${{ github.event.workflow_run.head_sha }}
+---
 # A plain pull_request workflow gets a read-only token and no secrets for forks,
 # so checking out the pull request head here is the safe pattern.
 name: pr-ci

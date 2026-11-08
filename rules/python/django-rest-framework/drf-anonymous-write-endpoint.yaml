@@ -75,6 +75,11 @@ rules:
                   @permission_classes([])
                   def $VIEW(...):
                     ...
+              - pattern: |
+                  @api_view([..., "$METHOD", ...])
+                  @permission_classes(())
+                  def $VIEW(...):
+                    ...
               - patterns:
                   - pattern-either:
                       - pattern: |

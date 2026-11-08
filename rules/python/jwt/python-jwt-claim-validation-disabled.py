@@ -31,6 +31,11 @@ def jose_user(token: str):
     return jose_jwt.decode(token, PUBLIC_KEY, algorithms=["RS256"], options={"verify_exp": False})
 
 
+def inline_dict(token: str):
+    # ruleid: python-jwt-claim-validation-disabled
+    return jwt.decode(token, PUBLIC_KEY, algorithms=["RS256"], options=dict(verify_aud=False))
+
+
 def strict_user(token: str):
     # ok: python-jwt-claim-validation-disabled
     return jwt.decode(

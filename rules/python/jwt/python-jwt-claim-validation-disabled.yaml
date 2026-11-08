@@ -35,6 +35,7 @@ rules:
     patterns:
       - pattern-either:
           - pattern: 'jwt.decode(..., options={..., "$OPTION": False, ...}, ...)'
+          - pattern: jwt.decode(..., options=dict(..., $OPTION=False, ...), ...)
           - pattern: |
               $OPTS = {..., "$OPTION": False, ...}
               ...
@@ -44,6 +45,7 @@ rules:
               ...
               jwt.decode(..., options=$OPTS, ...)
           - pattern: 'jose.jwt.decode(..., options={..., "$OPTION": False, ...}, ...)'
+          - pattern: jose.jwt.decode(..., options=dict(..., $OPTION=False, ...), ...)
           - pattern: |
               $OPTS = {..., "$OPTION": False, ...}
               ...

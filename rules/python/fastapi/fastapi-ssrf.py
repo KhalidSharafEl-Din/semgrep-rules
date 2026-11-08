@@ -112,7 +112,7 @@ async def config_user(user_id: int):
         # ok: fastapi-ssrf
         b = await client.get(settings.users_api + "/users/" + str(user_id))
         # ok: fastapi-ssrf
-        c = await client.get(urljoin(INVENTORY_API, f"items/{user_id}"))
+        c = await client.get(f"{INVENTORY_API}/items/{user_id}")
         # ok: fastapi-ssrf
         d = await client.get("{}/users/{}".format(os.getenv("USERS_API"), user_id))
     return [a.status_code, b.status_code, c.status_code, d.status_code]
@@ -122,3 +122,37 @@ async def config_user(user_id: int):
 def user_base(base: str, user_id: int):
     # ruleid: fastapi-ssrf
     return requests.get(f"{base}/users/{user_id}", timeout=5).text
+
+
+@app.get("/join")
+def join(path: str):
+    # A full URL in path replaces the base, so urljoin() is not a fix.
+    # ruleid: fastapi-ssrf
+    return httpx.get(urljoin(PARTNER_API, path)).text
+
+
+@app.get("/glued")
+def glued(path: str):
+    # No "/" after the base: "@evil.example" changes the host.
+    # ruleid: fastapi-ssrf
+    return httpx.get(f"{settings.users_api}{path}").text
+
+
+@app.get("/kw")
+def kw(url: str):
+    # ruleid: fastapi-ssrf
+    return httpx.request(method="GET", url=url).text
+
+
+class AuditLog:
+    def request(self, verb, target):
+        return None
+
+
+audit_log = AuditLog()
+
+
+@app.get("/audit")
+def audit(url: str):
+    # ok: fastapi-ssrf
+    return audit_log.request("GET", url)

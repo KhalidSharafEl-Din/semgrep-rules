@@ -69,14 +69,83 @@ rules:
                   - pattern: verify($TOKEN, $KEY, $OPTIONS, function ($ERR, ...) { ... })
                   - pattern: verify($TOKEN, $KEY, ($ERR, ...) => $BODY)
                   - pattern: verify($TOKEN, $KEY, $OPTIONS, ($ERR, ...) => $BODY)
-      # The error is read somewhere in the callback.
-      - pattern-not: "$VERIFY(..., function ($ERR, ...) { ... <... $ERR ...>; ... })"
-      - pattern-not: "$VERIFY(..., ($ERR, ...) => { ... <... $ERR ...>; ... })"
-      # The payload is checked before use: `if (!payload)`, `payload && ...` or `payload ? ... : ...`.
-      # On error the payload is undefined, so these reject the request too.
-      - pattern-not: "$VERIFY(..., function ($ERR, $PAYLOAD, ...) { ... <... !$PAYLOAD ...>; ... })"
-      - pattern-not: "$VERIFY(..., ($ERR, $PAYLOAD, ...) => { ... <... !$PAYLOAD ...>; ... })"
-      - pattern-not: "$VERIFY(..., function ($ERR, $PAYLOAD, ...) { ... <... $PAYLOAD && $COND ...>; ... })"
-      - pattern-not: "$VERIFY(..., ($ERR, $PAYLOAD, ...) => { ... <... $PAYLOAD && $COND ...>; ... })"
+      # The callback branches on the error: if (err) ..., if (!err) ..., err ? a : b.
+      # Reading the error without branching on it, such as console.log(err), still counts
+      # as ignoring it.
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            ...
+            if (<... $ERR ...>) $THEN
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            ...
+            <... $ERR ? $YES : $NO ...>;
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            ...
+            if (<... $ERR ...>) $THEN
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            ...
+            <... $ERR ? $YES : $NO ...>;
+            ...
+          })
+      - pattern-not: "$VERIFY(..., ($ERR, ...) => <... $ERR ? $YES : $NO ...>)"
+      # The payload is checked in a branch before use. On error it is undefined, so
+      # if (!payload) return ..., or if (payload && payload.role === 'admin') ..., rejects
+      # the request too.
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, $PAYLOAD, ...) {
+            ...
+            if (!$PAYLOAD) $THEN
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, $PAYLOAD, ...) {
+            ...
+            if (!$PAYLOAD || $COND) $THEN
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, $PAYLOAD, ...) {
+            ...
+            if ($PAYLOAD) $THEN
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, $PAYLOAD, ...) {
+            ...
+            if ($PAYLOAD && $COND) $THEN
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, $PAYLOAD, ...) => {
+            ...
+            if (!$PAYLOAD) $THEN
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, $PAYLOAD, ...) => {
+            ...
+            if (!$PAYLOAD || $COND) $THEN
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, $PAYLOAD, ...) => {
+            ...
+            if ($PAYLOAD) $THEN
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, $PAYLOAD, ...) => {
+            ...
+            if ($PAYLOAD && $COND) $THEN
+            ...
+          })
       - pattern-not: "$VERIFY(..., ($ERR, $PAYLOAD, ...) => <... $PAYLOAD ? $YES : $NO ...>)"
-      - pattern-not: "$VERIFY(..., ($ERR, $PAYLOAD, ...) => { ... <... $PAYLOAD ? $YES : $NO ...>; ... })"

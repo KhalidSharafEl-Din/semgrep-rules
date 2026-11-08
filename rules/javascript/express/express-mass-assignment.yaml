@@ -43,12 +43,41 @@ rules:
       - pattern: $REQ.body[$KEY]
       - pattern: $LODASH.pick(...)
       - pattern: pick(...)
-      - pattern: $SCHEMA.parse(...)
-      - pattern: $SCHEMA.safeParse(...)
-      - pattern: $SCHEMA.parseAsync(...)
+      # Schema parsers drop unknown keys and check types, unless the schema keeps
+      # unknown keys (zod passthrough, loose or catchall, Joi unknown or allowUnknown).
+      - patterns:
+          - pattern-either:
+              - pattern: $SCHEMA.parse(...)
+              - pattern: $SCHEMA.safeParse(...)
+              - pattern: $SCHEMA.parseAsync(...)
+              - pattern: $SCHEMA.validateAsync(...)
+          - pattern-not: JSON.parse(...)
+          - pattern-not: "$SCHEMA.validateAsync($INPUT, {..., allowUnknown: true, ...})"
+          - pattern-not-inside: |
+              $SCHEMA = $Z.$BUILD(...).passthrough(...)
+              ...
+          - pattern-not-inside: |
+              $SCHEMA = $Z.$BUILD(...).$MORE(...).passthrough(...)
+              ...
+          - pattern-not-inside: |
+              $SCHEMA = $Z.$BUILD(...).loose(...)
+              ...
+          - pattern-not-inside: |
+              $SCHEMA = $Z.$BUILD(...).$MORE(...).loose(...)
+              ...
+          - pattern-not-inside: |
+              $SCHEMA = $Z.$BUILD(...).catchall(...)
+              ...
+          - pattern-not-inside: |
+              $SCHEMA = $Z.$BUILD(...).$MORE(...).catchall(...)
+              ...
+          - pattern-not-inside: |
+              $SCHEMA = $Z.$BUILD(...).unknown(...)
+              ...
+          - pattern-not-inside: |
+              $SCHEMA = $Z.$BUILD(...).$MORE(...).unknown(...)
+              ...
       - pattern: matchedData(...)
-      # Joi rejects unknown keys by default.
-      - pattern: $SCHEMA.validateAsync(...)
     pattern-sinks:
       - patterns:
           - pattern-either:
@@ -72,6 +101,15 @@ rules:
                       - pattern: $MODEL.updateOne($FILTER, $DATA, ...)
                       - pattern: $MODEL.updateMany($FILTER, $DATA, ...)
                       - pattern: $MODEL.replaceOne($FILTER, $DATA, ...)
+                      # MongoDB update operators: { $set: req.body }.
+                      - patterns:
+                          - pattern: "$MODEL.$UPDATE($FILTER, {..., $OPERATOR: $DATA, ...}, ...)"
+                          - metavariable-regex:
+                              metavariable: $UPDATE
+                              regex: ^(findByIdAndUpdate|findOneAndUpdate|updateOne|updateMany)$
+                          - metavariable-regex:
+                              metavariable: $OPERATOR
+                              regex: ^["']?\$(set|setOnInsert)["']?$
                   # Model classes are PascalCase by convention. This keeps unrelated
                   # calls such as stripe.customers.create() out of the results.
                   - metavariable-regex:
