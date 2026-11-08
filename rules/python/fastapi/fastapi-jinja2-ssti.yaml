@@ -1,0 +1,80 @@
+rules:
+  - id: fastapi-jinja2-ssti
+    languages: [python]
+    severity: ERROR
+    mode: taint
+    message: >-
+      A FastAPI request parameter becomes the source text of a Jinja2 template. Jinja2
+      evaluates expressions inside `{{ }}`, so a value like
+      `{{ cycler.__init__.__globals__.os.popen('id').read() }}` runs commands on the
+      server. To fix it, keep template source in files or string constants, and pass
+      user input as a variable when you render: `TEMPLATE.render(name=name)`. If users
+      must write their own templates, use `jinja2.sandbox.SandboxedEnvironment` and
+      treat the sandbox as one layer of defence, not the whole fix.
+    metadata:
+      category: security
+      subcategory: [vuln]
+      cwe:
+        - "CWE-1336: Improper Neutralization of Special Elements Used in a Template Engine"
+      owasp:
+        - A03:2021 - Injection
+        - A05:2025 - Injection
+      confidence: HIGH
+      likelihood: MEDIUM
+      impact: HIGH
+      technology: [fastapi, jinja2]
+      references:
+        - https://jinja.palletsprojects.com/en/stable/sandbox/
+        - https://portswigger.net/web-security/server-side-template-injection
+        - https://cheatsheetseries.owasp.org/cheatsheets/Injection_Prevention_Cheat_Sheet.html
+      registry-comparison: >-
+        The community registry flags Flask's `render_template_string` and a few Django
+        template patterns. It has no FastAPI sources and does not treat
+        `jinja2.Template(...)` or `Environment.from_string(...)` as sinks.
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  @$APP.$ROUTE(...)
+                  def $FUNC(..., $PARAM, ...): ...
+              - pattern-inside: |
+                  @$APP.$ROUTE(...)
+                  async def $FUNC(..., $PARAM, ...): ...
+          - metavariable-regex:
+              metavariable: $ROUTE
+              regex: ^(get|post|put|patch|delete|options|head|api_route|websocket)$
+          # Parameters filled by Depends() or Security() come from server code, not the client.
+          - pattern-not-inside: |
+              def $FUNC(..., $PARAM = $DEP(...), ...): ...
+          - pattern-not-inside: |
+              def $FUNC(..., $PARAM: $TYPE = $DEP(...), ...): ...
+          - pattern-not-inside: |
+              async def $FUNC(..., $PARAM = $DEP(...), ...): ...
+          - pattern-not-inside: |
+              async def $FUNC(..., $PARAM: $TYPE = $DEP(...), ...): ...
+          - focus-metavariable: $PARAM
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: jinja2.Template($SRC, ...)
+              - pattern: jinja2.Environment(...).from_string($SRC, ...)
+              - patterns:
+                  - pattern-inside: |
+                      from jinja2 import Template
+                      ...
+                  - pattern: Template($SRC, ...)
+              - patterns:
+                  - pattern-either:
+                      - pattern-inside: |
+                          $ENV = jinja2.Environment(...)
+                          ...
+                      - pattern-inside: |
+                          $ENV = Environment(...)
+                          ...
+                  - pattern: $ENV.from_string($SRC, ...)
+              - patterns:
+                  - pattern-inside: |
+                      $TEMPLATES = Jinja2Templates(...)
+                      ...
+                  - pattern: $TEMPLATES.env.from_string($SRC, ...)
+          - focus-metavariable: $SRC

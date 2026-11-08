@@ -1,0 +1,58 @@
+rules:
+  - id: python-jwt-claim-validation-disabled
+    languages: [python]
+    severity: WARNING
+    message: >-
+      This call verifies the token signature but turns off the `$OPTION` check. With
+      `verify_exp` off, a stolen or logged token never expires. With `verify_aud` or
+      `verify_iss` off, a token issued for another service or tenant that shares the
+      signing key is accepted here. To fix it, remove `"$OPTION": False` and pass the
+      expected values instead, for example
+      `jwt.decode(token, key, algorithms=["RS256"], audience="orders-api", issuer="https://auth.example.com/")`.
+      If clock drift is the problem, set a small `leeway` (a few seconds) rather than
+      turning the check off.
+    metadata:
+      category: security
+      subcategory: [vuln]
+      cwe:
+        - "CWE-613: Insufficient Session Expiration"
+        - "CWE-1390: Weak Authentication"
+      owasp:
+        - A07:2021 - Identification and Authentication Failures
+        - A07:2025 - Authentication Failures
+      confidence: HIGH
+      likelihood: MEDIUM
+      impact: MEDIUM
+      technology: [jwt, pyjwt, python-jose]
+      references:
+        - https://pyjwt.readthedocs.io/en/stable/api.html#jwt.decode
+        - https://python-jose.readthedocs.io/en/latest/jwt/api.html
+        - https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html
+        - https://datatracker.ietf.org/doc/html/rfc8725#section-3.10
+      registry-comparison: >-
+        The community rule unverified-jwt-decode flags `"verify_signature": False`. It
+        does not flag the per-claim options, so expiry, audience and issuer checks can be
+        switched off without a finding.
+    patterns:
+      - pattern-either:
+          - pattern: 'jwt.decode(..., options={..., "$OPTION": False, ...}, ...)'
+          - pattern: |
+              $OPTS = {..., "$OPTION": False, ...}
+              ...
+              jwt.decode(..., options=$OPTS, ...)
+          - pattern: |
+              $OPTS = dict(..., $OPTION=False, ...)
+              ...
+              jwt.decode(..., options=$OPTS, ...)
+          - pattern: 'jose.jwt.decode(..., options={..., "$OPTION": False, ...}, ...)'
+          - pattern: |
+              $OPTS = {..., "$OPTION": False, ...}
+              ...
+              jose.jwt.decode(..., options=$OPTS, ...)
+          - pattern: |
+              $OPTS = dict(..., $OPTION=False, ...)
+              ...
+              jose.jwt.decode(..., options=$OPTS, ...)
+      - metavariable-regex:
+          metavariable: $OPTION
+          regex: ^verify_(exp|aud|iss|nbf|iat|sub|jti|at_hash)$

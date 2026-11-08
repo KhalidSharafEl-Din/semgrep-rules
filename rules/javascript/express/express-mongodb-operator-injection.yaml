@@ -1,0 +1,90 @@
+rules:
+  - id: express-mongodb-operator-injection
+    languages: [js, ts]
+    severity: ERROR
+    mode: taint
+    message: >-
+      A value from `req.body` or `req.query` goes into a MongoDB query filter without
+      being forced to a string. JSON bodies, and query strings parsed by `qs`, can carry
+      objects, so a client can send `{"password": {"$ne": null}}` and the filter
+      matches any password. That is a login bypass on a `findOne` and a data leak or
+      mass delete on `find` and `deleteMany`. To fix it, cast each value to the type
+      you expect before it reaches the filter (`String(req.body.email)`), validate the
+      body with a schema, or strip `$` keys with a sanitizer such as
+      `express-mongo-sanitize`. Mongoose's `sanitizeFilter` option also blocks this.
+    metadata:
+      category: security
+      subcategory: [vuln]
+      cwe:
+        - "CWE-943: Improper Neutralization of Special Elements in Data Query Logic"
+      owasp:
+        - A03:2021 - Injection
+        - A05:2025 - Injection
+      confidence: MEDIUM
+      likelihood: HIGH
+      impact: HIGH
+      technology: [express, mongodb, mongoose]
+      references:
+        - https://cheatsheetseries.owasp.org/cheatsheets/NodeJS_Security_Cheat_Sheet.html
+        - https://mongoosejs.com/docs/api/mongoose.html#Mongoose.prototype.sanitizeFilter()
+        - https://portswigger.net/web-security/nosql-injection
+      registry-comparison: >-
+        The community registry has no MongoDB or Mongoose injection rule for
+        JavaScript or TypeScript. The closest one covers DynamoDB in AWS Lambda.
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern-inside: function ... ($REQ, $RES, ...) { ... }
+              - pattern-inside: ($REQ, $RES, ...) => { ... }
+          # Route params are always strings, so only body and query are sources.
+          - pattern-either:
+              - pattern: $REQ.body
+              - pattern: $REQ.query
+    pattern-sanitizers:
+      - pattern: String(...)
+      - pattern: Number(...)
+      - pattern: parseInt(...)
+      - pattern: parseFloat(...)
+      - pattern: Boolean(...)
+      - pattern: $X.toString()
+      - pattern: "`...`"
+      - pattern: $SCHEMA.parse(...)
+      - pattern: $SCHEMA.safeParse(...)
+      - pattern: sanitize(...)
+      - pattern: $MONGO_SANITIZE.sanitize(...)
+      - pattern: mongoSanitize(...)
+      - pattern: new ObjectId(...)
+      - pattern: $MONGOOSE.Types.ObjectId(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: "$COLLECTION.$METHOD({..., $KEY: $VALUE, ...}, ...)"
+              # The whole filter from the request, e.g. deleteMany(req.body). Object
+              # literals are handled per property by the pattern above.
+              - patterns:
+                  - pattern: $COLLECTION.$METHOD($VALUE, ...)
+                  - metavariable-pattern:
+                      metavariable: $VALUE
+                      language: generic
+                      pattern-regex: \A[^{]
+          - metavariable-regex:
+              metavariable: $METHOD
+              regex: ^(find|findOne|update|remove|findOneAndUpdate|findOneAndDelete|findOneAndReplace|findOneAndRemove|updateOne|updateMany|deleteOne|deleteMany|replaceOne|countDocuments|exists|where)$
+          # Sequelize also has findOne/updateOne-style methods, but its operators are
+          # Symbols (Op.ne), so a JSON object cannot inject one. Skip its `where:` filters.
+          - pattern-not-inside: "$COLLECTION.$METHOD({..., where: $WHERE, ...}, ...)"
+          - pattern-not-inside: "$COLLECTION.$METHOD($VALUES, {..., where: $WHERE, ...}, ...)"
+          # A one-argument update() is a Sequelize or Mongoose instance update, not a filter.
+          - pattern-not-inside: $COLLECTION.update($ONLY_ARGUMENT)
+          # A typeof check that rejects non-strings before the query is a fix.
+          - pattern-not-inside: |
+              if (typeof $VALUE !== $TYPE) { ... }
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE != $TYPE) { ... }
+              ...
+          - pattern-not-inside: |
+              if (typeof $VALUE === $TYPE) { ... }
+          - pattern-not-inside: |
+              if (typeof $VALUE == $TYPE) { ... }
+          - focus-metavariable: $VALUE

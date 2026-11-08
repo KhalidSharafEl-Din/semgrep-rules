@@ -1,0 +1,106 @@
+rules:
+  - id: fastapi-ssrf
+    languages: [python]
+    severity: ERROR
+    mode: taint
+    message: >-
+      A FastAPI request parameter reaches the URL of an outbound HTTP call. An attacker
+      can point the server at internal services, cloud metadata endpoints such as
+      169.254.169.254, or localhost admin ports, and read the response or trigger
+      side effects. To fix it, keep the scheme and host fixed in code and put user
+      input only in the path or query, for example
+      `httpx.get(f"https://api.example.com/users/{user_id}")`. If users must supply a
+      full URL, parse it, compare the hostname against an allowlist, resolve it and
+      reject private, loopback and link-local addresses, and disable redirects.
+    metadata:
+      category: security
+      subcategory: [vuln]
+      cwe:
+        - "CWE-918: Server-Side Request Forgery (SSRF)"
+      owasp:
+        - A10:2021 - Server-Side Request Forgery (SSRF)
+        - A01:2025 - Broken Access Control
+      confidence: MEDIUM
+      likelihood: MEDIUM
+      impact: HIGH
+      technology: [fastapi, httpx, requests, aiohttp]
+      references:
+        - https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html
+        - https://fastapi.tiangolo.com/tutorial/query-params/
+        - https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_%28SSRF%29/
+      registry-comparison: >-
+        The community registry has SSRF taint rules for Flask and Django with `requests`
+        and `urllib` sinks, but no FastAPI rules. This rule treats FastAPI route
+        parameters as sources and adds `httpx` and `aiohttp` sinks, which async FastAPI
+        services use more than `requests`.
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  @$APP.$ROUTE(...)
+                  def $FUNC(..., $PARAM, ...): ...
+              - pattern-inside: |
+                  @$APP.$ROUTE(...)
+                  async def $FUNC(..., $PARAM, ...): ...
+          - metavariable-regex:
+              metavariable: $ROUTE
+              regex: ^(get|post|put|patch|delete|options|head|api_route|websocket)$
+          # Parameters filled by Depends() or Security() come from server code, not the client.
+          - pattern-not-inside: |
+              def $FUNC(..., $PARAM = $DEP(...), ...): ...
+          - pattern-not-inside: |
+              def $FUNC(..., $PARAM: $TYPE = $DEP(...), ...): ...
+          - pattern-not-inside: |
+              async def $FUNC(..., $PARAM = $DEP(...), ...): ...
+          - pattern-not-inside: |
+              async def $FUNC(..., $PARAM: $TYPE = $DEP(...), ...): ...
+          - focus-metavariable: $PARAM
+    pattern-sanitizers:
+      # A literal scheme and host in front of the input keeps the request on that host.
+      - patterns:
+          - pattern-either:
+              - pattern: f"$PREFIX{...}..."
+              - pattern: '"$PREFIX" + $REST'
+          - metavariable-regex:
+              metavariable: $PREFIX
+              regex: ^https?://[^/{}]+/
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - patterns:
+                  - pattern-either:
+                      - pattern: $LIB.$METHOD($URL, ...)
+                      - pattern: $LIB.$METHOD(..., url=$URL, ...)
+                  - metavariable-regex:
+                      metavariable: $LIB
+                      regex: ^(requests|httpx)$
+                  - metavariable-regex:
+                      metavariable: $METHOD
+                      regex: ^(get|post|put|patch|delete|head|options|stream)$
+              - pattern: $LIB.request($VERB, $URL, ...)
+              - pattern: urllib.request.urlopen($URL, ...)
+              - pattern: urllib.request.Request($URL, ...)
+              - patterns:
+                  - pattern-either:
+                      - pattern-inside: |
+                          async with $CLIENT_CLASS(...) as $CLIENT:
+                            ...
+                      - pattern-inside: |
+                          with $CLIENT_CLASS(...) as $CLIENT:
+                            ...
+                      - pattern-inside: |
+                          $CLIENT = $CLIENT_CLASS(...)
+                          ...
+                  - metavariable-regex:
+                      metavariable: $CLIENT_CLASS
+                      regex: ^(httpx\.AsyncClient|httpx\.Client|aiohttp\.ClientSession|requests\.Session|requests\.session)$
+                  - pattern-either:
+                      - patterns:
+                          - pattern-either:
+                              - pattern: $CLIENT.$METHOD($URL, ...)
+                              - pattern: $CLIENT.$METHOD(..., url=$URL, ...)
+                          - metavariable-regex:
+                              metavariable: $METHOD
+                              regex: ^(get|post|put|patch|delete|head|options|stream)$
+                      - pattern: $CLIENT.request($VERB, $URL, ...)
+          - focus-metavariable: $URL

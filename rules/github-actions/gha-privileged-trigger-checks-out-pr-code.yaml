@@ -1,0 +1,92 @@
+rules:
+  - id: gha-privileged-trigger-checks-out-pr-code
+    languages: [yaml]
+    severity: ERROR
+    message: >-
+      This workflow runs on `$TRIGGER`, which gets a write-capable `GITHUB_TOKEN` and
+      repository secrets even when a fork opened the pull request, and this step fetches
+      the pull request's own code. Any build, install, test or lint command that runs
+      after this line executes the attacker's code with those secrets. To fix it, move
+      work that runs pull request code to a `pull_request` workflow, which gets no
+      secrets for forks. If a privileged step needs the result, let the `pull_request`
+      workflow upload it as an artifact and have a `workflow_run` workflow read it as
+      data only. If this job only reads files and never executes them, check out into a
+      separate `path:`, set `persist-credentials: false`, and add a `# nosemgrep` comment
+      that says why.
+    metadata:
+      category: security
+      subcategory: [vuln]
+      cwe:
+        - "CWE-829: Inclusion of Functionality from Untrusted Control Sphere"
+      owasp:
+        - A08:2021 - Software and Data Integrity Failures
+        - A08:2025 - Software and Data Integrity Failures
+      confidence: MEDIUM
+      likelihood: MEDIUM
+      impact: HIGH
+      technology: [github-actions]
+      references:
+        - https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/
+        - https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#pull_request_target
+        - https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#issue_comment
+      registry-comparison: >-
+        The community rules pull-request-target-code-checkout and
+        workflow-run-target-code-checkout only match `actions/checkout` with a `ref`
+        built from `github.event.pull_request.*`, `github.head_ref` or
+        `github.event.workflow_run.*`. They miss `refs/pull/<number>/merge` refs,
+        refs built from `github.event.number` or `github.event.issue.number`, the
+        `issue_comment` trigger used by "/test" comment bots, a `repository:` input
+        pointing at the fork, and checkouts done in a `run:` step with `gh pr checkout`
+        or `git fetch ... pull/...`. This rule covers those and the cases the community
+        rules cover, so expect duplicate findings if you run both.
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              on:
+                ...
+                $TRIGGER: ...
+                ...
+              ...
+          - pattern-inside: |
+              on: [..., $TRIGGER, ...]
+              ...
+          - pattern-inside: |
+              on: $TRIGGER
+              ...
+      - metavariable-regex:
+          metavariable: $TRIGGER
+          regex: ^(pull_request_target|issue_comment|workflow_run)$
+      - pattern-inside: "steps: [...]"
+      - pattern-either:
+          - patterns:
+              - pattern-inside: |
+                  - uses: $ACTION
+                    ...
+              - metavariable-regex:
+                  metavariable: $ACTION
+                  regex: ^actions/checkout@
+              - pattern-either:
+                  - pattern: "ref: $EXPR"
+                  - pattern: "repository: $EXPR"
+              - metavariable-pattern:
+                  metavariable: $EXPR
+                  language: generic
+                  pattern-either:
+                    - pattern: refs/pull/
+                    - pattern: github.event.number
+                    - pattern: github.event.issue.number
+                    - pattern: github.event.pull_request.number
+                    - pattern: github.event.pull_request.head
+                    - pattern: github.head_ref
+                    - pattern: github.event.workflow_run.head_sha
+                    - pattern: github.event.workflow_run.head_branch
+                    - pattern: github.event.workflow_run.head_repository
+          - patterns:
+              - pattern: "run: $SCRIPT"
+              - metavariable-pattern:
+                  metavariable: $SCRIPT
+                  language: generic
+                  pattern-either:
+                    - pattern: gh pr checkout
+                    - pattern: git fetch ... pull/
+                    - pattern: git fetch ... refs/pull/

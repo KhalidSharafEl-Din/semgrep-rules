@@ -1,0 +1,48 @@
+rules:
+  - id: python-pickle-based-model-load
+    languages: [python]
+    severity: WARNING
+    message: >-
+      `$CALL` reads the file with pickle, and loading a pickle runs whatever code the
+      file contains. If an attacker can supply or replace this file (an upload, a model
+      downloaded from a hub, a shared bucket, a cache directory), they get code
+      execution on this host. To fix it, load only tensors and arrays: use
+      `torch.load(path, weights_only=True)` (the default from PyTorch 2.6, but older
+      versions and explicit `weights_only=False` still unpickle), `numpy.load(path)`
+      without `allow_pickle=True`, and the `safetensors` format for model weights. For
+      joblib and pandas pickles, only load files your own pipeline wrote and stored
+      where nobody else can write.
+    metadata:
+      category: security
+      subcategory: [audit]
+      cwe:
+        - "CWE-502: Deserialization of Untrusted Data"
+      owasp:
+        - A08:2021 - Software and Data Integrity Failures
+        - A08:2025 - Software and Data Integrity Failures
+      confidence: MEDIUM
+      likelihood: LOW
+      impact: HIGH
+      technology: [pytorch, numpy, joblib, pandas]
+      references:
+        - https://pytorch.org/docs/stable/generated/torch.load.html
+        - https://numpy.org/doc/stable/reference/generated/numpy.load.html
+        - https://joblib.readthedocs.io/en/stable/persistence.html
+        - https://huggingface.co/docs/safetensors/index
+        - https://docs.python.org/3/library/pickle.html
+      registry-comparison: >-
+        The community registry flags `pickle`, `dill`, `shelve` and `jsonpickle` calls,
+        but not the ML loaders that call pickle internally: `torch.load`,
+        `numpy.load(allow_pickle=True)`, `joblib.load` and `pandas.read_pickle`.
+    pattern-either:
+      - patterns:
+          - pattern: torch.load(...)
+          - pattern-not: torch.load(..., weights_only=True, ...)
+          - pattern: $CALL(...)
+      - patterns:
+          - pattern-either:
+              - pattern: numpy.load(..., allow_pickle=True, ...)
+              - pattern: joblib.load(...)
+              - pattern: pandas.read_pickle(...)
+              - pattern: sklearn.externals.joblib.load(...)
+          - pattern: $CALL(...)

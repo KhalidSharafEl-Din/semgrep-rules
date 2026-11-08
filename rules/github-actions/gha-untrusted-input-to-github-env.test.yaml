@@ -1,0 +1,65 @@
+name: label-issue
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+
+permissions:
+  contents: read
+
+jobs:
+  step-env:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Save the issue title for later steps
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+        # ruleid: gha-untrusted-input-to-github-env
+        run: |
+          echo "ISSUE_TITLE=$ISSUE_TITLE" >> "$GITHUB_ENV"
+
+      - name: Key order does not matter
+        # ruleid: gha-untrusted-input-to-github-env
+        run: |
+          set -euo pipefail
+          printf 'BRANCH=%s\n' "${HEAD_REF}" >> $GITHUB_ENV
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+
+      - name: Untrusted directory added to PATH
+        env:
+          TOOL_DIR: ${{ github.event.pull_request.title }}
+        # ruleid: gha-untrusted-input-to-github-env
+        run: echo "$TOOL_DIR/bin" >> "$GITHUB_PATH"
+
+      - name: Trusted value written to the env file
+        env:
+          RUN_ID: ${{ github.run_id }}
+        # ok: gha-untrusted-input-to-github-env
+        run: echo "RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+
+      - name: Untrusted value only printed, never written to the env file
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        # ok: gha-untrusted-input-to-github-env
+        run: printf '%s\n' "$ISSUE_BODY" | wc -c
+
+      - name: Untrusted value in env, but a different variable reaches the env file
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        # ok: gha-untrusted-input-to-github-env
+        run: echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
+
+  job-env:
+    runs-on: ubuntu-latest
+    env:
+      PR_BODY: ${{ github.event.pull_request.body }}
+    steps:
+      - name: Job-level env reaches the env file
+        # ruleid: gha-untrusted-input-to-github-env
+        run: echo "NOTES=$PR_BODY" >> "$GITHUB_ENV"
+
+      - name: Job-level env used safely
+        # ok: gha-untrusted-input-to-github-env
+        run: echo "body length ${#PR_BODY}"

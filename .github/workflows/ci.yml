@@ -1,0 +1,38 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rules:
+    name: Validate, test and lint rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      # Same Semgrep version the rules were written and tested against. Pinned by
+      # digest so the image cannot change under a tag.
+      image: semgrep/semgrep:1.184.0@sha256:cc1b68266f267878b39739373ea9985b9a78e5d64497dd875c8de100b22695ed
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Show Semgrep version
+        run: semgrep --version
+
+      - name: Validate rule syntax
+        run: semgrep --validate --metrics=off --config rules/
+
+      - name: Run rule tests
+        run: semgrep --test --metrics=off rules/
+
+      - name: Lint rules with the semgrep-rules lint pack
+        run: sh scripts/lint-rules.sh

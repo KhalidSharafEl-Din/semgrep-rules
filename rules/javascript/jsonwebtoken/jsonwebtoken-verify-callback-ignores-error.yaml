@@ -1,0 +1,52 @@
+rules:
+  - id: jsonwebtoken-verify-callback-ignores-error
+    languages: [js, ts]
+    severity: ERROR
+    message: >-
+      The callback passed to `jwt.verify()` never reads its error argument `$ERR`. When
+      the signature is wrong, the token has expired or the algorithm is not allowed,
+      jsonwebtoken calls the callback with an error and an undefined payload, and this
+      code carries on as if the token were valid. Depending on what follows, that is an
+      authentication bypass or a crash on `undefined`. To fix it, check the error first
+      and stop: `if ($ERR) return res.status(401).end();`. The promise form,
+      `util.promisify(jwt.verify)` inside `try`/`catch`, avoids the mistake.
+    metadata:
+      category: security
+      subcategory: [vuln]
+      cwe:
+        - "CWE-347: Improper Verification of Cryptographic Signature"
+        - "CWE-754: Improper Check for Unusual or Exceptional Conditions"
+      owasp:
+        - A07:2021 - Identification and Authentication Failures
+        - A07:2025 - Authentication Failures
+      confidence: HIGH
+      likelihood: MEDIUM
+      impact: HIGH
+      technology: [jwt, jsonwebtoken, express]
+      references:
+        - https://github.com/auth0/node-jsonwebtoken#jwtverifytoken-secretorpublickey-options-callback
+        - https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html
+      registry-comparison: >-
+        The community jsonwebtoken rules cover hardcoded secrets, the `none` algorithm
+        and `jwt.decode()` without `jwt.verify()`. None of them checks whether the
+        `jwt.verify()` callback handles its error.
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              $JWT = require('jsonwebtoken')
+              ...
+          - pattern-inside: |
+              import $JWT from 'jsonwebtoken'
+              ...
+          - pattern-inside: |
+              import * as $JWT from 'jsonwebtoken'
+              ...
+      - pattern-either:
+          - pattern: $JWT.verify($TOKEN, $KEY, function ($ERR, ...) { ... })
+          - pattern: $JWT.verify($TOKEN, $KEY, $OPTIONS, function ($ERR, ...) { ... })
+          - pattern: $JWT.verify($TOKEN, $KEY, ($ERR, ...) => { ... })
+          - pattern: $JWT.verify($TOKEN, $KEY, $OPTIONS, ($ERR, ...) => { ... })
+          - pattern: $JWT.verify($TOKEN, $KEY, ($ERR, ...) => $BODY)
+          - pattern: $JWT.verify($TOKEN, $KEY, $OPTIONS, ($ERR, ...) => $BODY)
+      - pattern-not: '$JWT.verify(..., function ($ERR, ...) { ... <... $ERR ...>; ... })'
+      - pattern-not: '$JWT.verify(..., ($ERR, ...) => { ... <... $ERR ...>; ... })'

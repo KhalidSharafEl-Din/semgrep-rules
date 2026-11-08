@@ -1,0 +1,103 @@
+rules:
+  - id: express-mass-assignment
+    languages: [js, ts]
+    severity: WARNING
+    mode: taint
+    message: >-
+      The whole request body reaches a database write. A client can add fields the form
+      never shows, such as `role`, `isAdmin`, `ownerId`, `balance` or `emailVerified`, and
+      the ORM saves them. To fix it, copy only the fields this endpoint may change, for
+      example `const { name, email } = req.body; await User.create({ name, email });`,
+      or parse the body with a schema that drops unknown keys, such as zod's
+      `schema.parse(req.body)` or express-validator's `matchedData(req)`.
+    metadata:
+      category: security
+      subcategory: [vuln]
+      cwe:
+        - "CWE-915: Improperly Controlled Modification of Dynamically-Determined Object Attributes"
+      owasp:
+        - A08:2021 - Software and Data Integrity Failures
+        - A01:2025 - Broken Access Control
+      confidence: MEDIUM
+      likelihood: MEDIUM
+      impact: HIGH
+      technology: [express, mongoose, sequelize, prisma]
+      references:
+        - https://cheatsheetseries.owasp.org/cheatsheets/Mass_Assignment_Cheat_Sheet.html
+        - https://owasp.org/API-Security/editions/2023/en/0xa3-broken-object-property-level-authorization/
+        - https://mongoosejs.com/docs/api/model.html#Model.create()
+        - https://www.prisma.io/docs/orm/reference/prisma-client-reference#create
+      registry-comparison: >-
+        The community registry has no mass assignment rule for JavaScript or TypeScript.
+        This rule tracks `req.body` into Mongoose, Sequelize and Prisma writes, and does
+        not report when the code picks named fields or parses the body with a schema
+        first.
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern-inside: function ... ($REQ, $RES, ...) { ... }
+              - pattern-inside: ($REQ, $RES, ...) => { ... }
+          - pattern: $REQ.body
+    pattern-sanitizers:
+      - pattern: $REQ.body.$FIELD
+      - pattern: $REQ.body[$KEY]
+      - pattern: $LODASH.pick(...)
+      - pattern: pick(...)
+      - pattern: $SCHEMA.parse(...)
+      - pattern: $SCHEMA.safeParse(...)
+      - pattern: $SCHEMA.parseAsync(...)
+      - pattern: matchedData(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              # Mongoose and Sequelize: the whole object as the document or the update.
+              - patterns:
+                  - pattern-either:
+                      - pattern: $MODEL.create($DATA, ...)
+                      - pattern: $MODEL.insertMany($DATA, ...)
+                      - pattern: $MODEL.build($DATA, ...)
+                      - pattern: $MODEL.bulkCreate($DATA, ...)
+                      - pattern: new $MODEL($DATA)
+                      - pattern: "$MODEL.update($DATA, {..., where: $W, ...})"
+                      - pattern: $MODEL.findByIdAndUpdate($ID, $DATA, ...)
+                      - pattern: $MODEL.findOneAndUpdate($FILTER, $DATA, ...)
+                      - pattern: $MODEL.findOneAndReplace($FILTER, $DATA, ...)
+                      - pattern: $MODEL.updateOne($FILTER, $DATA, ...)
+                      - pattern: $MODEL.updateMany($FILTER, $DATA, ...)
+                      - pattern: $MODEL.replaceOne($FILTER, $DATA, ...)
+                  # Model classes are PascalCase by convention. This keeps unrelated
+                  # calls such as stripe.customers.create() out of the results.
+                  - metavariable-regex:
+                      metavariable: $MODEL
+                      regex: ^[A-Z][A-Za-z0-9_]*$
+              # An instance loaded from the database, changed, then saved.
+              - patterns:
+                  - pattern-either:
+                      - pattern: $DOC.set($DATA)
+                      - pattern: Object.assign($DOC, $DATA)
+                  - pattern-inside: |
+                      $DOC = await $MODEL.$FIND(...);
+                      ...
+              # Prisma: the data argument.
+              - patterns:
+                  - pattern: "$PRISMA.$TABLE.$OP({..., data: $DATA, ...})"
+                  - metavariable-regex:
+                      metavariable: $OP
+                      regex: ^(create|createMany|update|updateMany|upsert)$
+          # An object literal that names its fields is the fix. The spread case,
+          # { ...req.body }, is handled by the second sink below.
+          - metavariable-pattern:
+              metavariable: $DATA
+              language: generic
+              pattern-regex: \A[^{]
+          - focus-metavariable: $DATA
+      - patterns:
+          - pattern-either:
+              - pattern: "new $MODEL({..., ...$DATA, ...})"
+              - pattern: "$MODEL.$OP({..., ...$DATA, ...}, ...)"
+              - pattern: "$MODEL.$OP($FILTER, {..., ...$DATA, ...}, ...)"
+              - pattern: "$PRISMA.$TABLE.$OP({..., data: {..., ...$DATA, ...}, ...})"
+          - metavariable-regex:
+              metavariable: $MODEL
+              regex: ^[A-Z][A-Za-z0-9_]*$
+          - focus-metavariable: $DATA
