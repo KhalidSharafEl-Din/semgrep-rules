@@ -3,8 +3,8 @@ rules:
     languages: [js, ts]
     severity: ERROR
     message: >-
-      The callback passed to `jwt.verify()` never reads its error argument `$ERR` and
-      never checks that the payload exists. When the signature is wrong, the token has
+      The callback passed to `jwt.verify()` never branches on its error argument `$ERR`
+      or on the payload before it continues. Logging the error does not count. When the signature is wrong, the token has
       expired or the algorithm is not allowed, jsonwebtoken calls the callback with an
       error and an undefined payload, and this code keeps going. If it calls `next()` or
       returns data, a request with a forged or expired token gets through. To fix it,
