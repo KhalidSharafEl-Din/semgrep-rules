@@ -274,4 +274,12 @@ router.post('/accounts/bulk', async (req, res) => {
   res.sendStatus(201);
 });
 
+router.post('/signup-joi-abort-allow', async (req, res) => {
+  const { value, error } = signupSchema.validate(req.body, { abortEarly: false, allowUnknown: true });
+  if (error) return res.status(400).end();
+  // ruleid: express-mass-assignment
+  await User.create(value);
+  res.sendStatus(201);
+});
+
 module.exports = router;

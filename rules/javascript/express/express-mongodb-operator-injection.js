@@ -303,4 +303,11 @@ app.post('/orders/batch-ids', async (req, res) => {
   res.json(await db.collection('orders').find({ _id: { $in: req.body.ids.map((id) => new mongoose.Types.ObjectId(id)) } }).toArray());
 });
 
+app.post('/search-joi-allow-unknown', async (req, res) => {
+  const { value, error } = loginSchema.validate(req.body, { abortEarly: false, allowUnknown: true });
+  if (error) return res.status(400).end();
+  // ruleid: express-mongodb-operator-injection
+  res.json(await db.collection('users').find(value).toArray());
+});
+
 module.exports = app;
