@@ -114,6 +114,30 @@ jobs:
           NOTES=$BODY
           EOF
 
+      - name: Heredoc first, then the redirect
+        env:
+          BODY: ${{ github.event.issue.body }}
+        # ruleid: gha-untrusted-input-to-github-env
+        run: |
+          cat <<EOF >> "$GITHUB_ENV"
+          NOTES=$BODY
+          EOF
+
+      - name: Subshell write with a single redirect
+        env:
+          TITLE: ${{ github.event.issue.title }}
+        # ruleid: gha-untrusted-input-to-github-env
+        run: |
+          (
+            echo "TITLE=$TITLE"
+          ) > "$GITHUB_ENV"
+
+      - name: tee without append
+        env:
+          TITLE: ${{ github.event.issue.title }}
+        # ruleid: gha-untrusted-input-to-github-env
+        run: echo "TITLE=$TITLE" | tee "$GITHUB_ENV"
+
   job-env:
     runs-on: ubuntu-latest
     env:

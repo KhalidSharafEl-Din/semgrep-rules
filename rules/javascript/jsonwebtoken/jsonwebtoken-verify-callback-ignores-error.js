@@ -145,8 +145,28 @@ function notNull(req, res, next) {
   });
 }
 
+function expiredOnlyForward(req, res, next) {
+  // ruleid: jsonwebtoken-verify-callback-ignores-error
+  jwt.verify(req.cookies.session, PUBLIC_KEY, (err, payload) => {
+    if (err && err.name === 'TokenExpiredError') return next(err);
+    req.user = payload;
+    next();
+  });
+}
+
+function successBranchThenNext(req, res, next) {
+  // Known miss: the success branch is accepted even though next() runs either way.
+  // todoruleid: jsonwebtoken-verify-callback-ignores-error
+  jwt.verify(req.cookies.session, PUBLIC_KEY, (err, payload) => {
+    if (!err) {
+      req.user = payload;
+    }
+    next();
+  });
+}
+
 app.get('/me', requireUser, (req, res) => res.json(req.user));
 app.get('/session', sessionInfo);
 app.get('/admin', requireAdmin, (req, res) => res.send('ok'));
 
-module.exports = { expiredOnly, notNull, refreshSession, logsInBranch, payloadLogOnly, forwardsToNext, nodeCallback, logsOnly, ifElse, requireUserChecked, forwardError, payloadGuard, synchronous, checkToken };
+module.exports = { expiredOnlyForward, successBranchThenNext, expiredOnly, notNull, refreshSession, logsInBranch, payloadLogOnly, forwardsToNext, nodeCallback, logsOnly, ifElse, requireUserChecked, forwardError, payloadGuard, synchronous, checkToken };

@@ -121,6 +121,8 @@ rules:
       - pattern: new Date(...)
       - pattern: $X.map(String)
       - pattern: $X.map(Number)
+      # { $eq: value } matches the value literally, which is what sanitizeFilter produces.
+      - pattern: "{ $eq: $V }"
       - pattern: "$X.map(($ITEM) => String($ITEM))"
       - pattern: "$X.map(($ITEM) => Number($ITEM))"
     pattern-sinks:
@@ -213,14 +215,47 @@ rules:
           - pattern-not-inside: |
               if (typeof $VALUE == "boolean") { ... }
           # Joi's validate() returns { value, error }. Code that checks the error and
-          # stops before the write is a fix.
+          # stops before the write is a fix. The one-argument form is required, so
+          # validate(input, { allowUnknown: true }) does not count.
           - pattern-not-inside: |
-              $RESULT = $SCHEMA.validate(...);
+              $RESULT = $SCHEMA.validate($INPUT);
               ...
               if (<... error ...>) { return ...; }
               ...
           - pattern-not-inside: |
-              $RESULT = $SCHEMA.validate(...);
+              $RESULT = $SCHEMA.validate($INPUT);
+              ...
+              if (<... error ...>) { $...BEFORE; return ...; }
+              ...
+          - pattern-not-inside: |
+              $RESULT = $SCHEMA.validate($INPUT);
+              ...
+              if (<... error ...>) { throw $ERROR; }
+              ...
+          - pattern-not-inside: |
+              $RESULT = $SCHEMA.validate($INPUT);
+              ...
+              if (<... error ...>) { $...BEFORE; throw $ERROR; }
+              ...
+          - pattern-not-inside: |
+              $RESULT = $SCHEMA.validate($INPUT);
+              ...
+              if (<... $RESULT.error ...>) { return ...; }
+              ...
+          - pattern-not-inside: |
+              $RESULT = $SCHEMA.validate($INPUT);
+              ...
+              if (<... $RESULT.error ...>) { $...BEFORE; return ...; }
+              ...
+          - pattern-not-inside: |
+              $RESULT = $SCHEMA.validate($INPUT);
+              ...
+              if (<... $RESULT.error ...>) { throw $ERROR; }
+              ...
+          - pattern-not-inside: |
+              $RESULT = $SCHEMA.validate($INPUT);
+              ...
+              if (<... $RESULT.error ...>) { $...BEFORE; throw $ERROR; }
               ...
               if (<... error ...>) { $...BEFORE; return ...; }
               ...

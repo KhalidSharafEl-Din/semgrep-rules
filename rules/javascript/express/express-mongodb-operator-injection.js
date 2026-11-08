@@ -263,4 +263,25 @@ app.post('/users/where-sibling', async (req, res) => {
   res.json(await User.findOne({ name: req.body.name, where: { archived: false } }));
 });
 
+app.post('/login-result-error', async (req, res) => {
+  const result = loginSchema.validate(req.body);
+  if (result.error) return res.status(400).end();
+  // ok: express-mongodb-operator-injection
+  res.json(await User.findOne({ email: result.value.email }));
+});
+
+app.post('/login-eq', async (req, res) => {
+  // ok: express-mongodb-operator-injection
+  res.json(await User.findOne({ email: { $eq: req.body.email } }));
+});
+
+app.post('/login-object-guard', async (req, res) => {
+  const email = req.body.email;
+  if (typeof email !== 'object') return res.status(400).end();
+  // Known miss: any typeof check that returns counts as a guard, even one that
+  // lets only objects through.
+  // todoruleid: express-mongodb-operator-injection
+  res.json(await User.findOne({ email }));
+});
+
 module.exports = app;

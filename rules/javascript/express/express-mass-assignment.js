@@ -6,7 +6,8 @@ const { PrismaClient } = require('@prisma/client');
 const User = require('./models/user');
 const Order = require('./models/order');
 const Joi = require('joi');
-const { Invoice } = require('./sequelize-models');
+const { Invoice, Account } = require('./sequelize-models');
+const { sharedUserSchema } = require('./schemas');
 
 const noteSchema = Joi.object({ text: Joi.string().max(200) });
 const yup = require('yup');
@@ -214,6 +215,30 @@ router.post('/users/rest', async (req, res) => {
   // Semgrep drops taint on a ...rest binding, so this is missed.
   // todoruleid: express-mass-assignment
   await User.create(rest);
+  res.sendStatus(201);
+});
+
+router.post('/signup-joi-allow-unknown', async (req, res) => {
+  const { value, error } = signupSchema.validate(req.body, { allowUnknown: true });
+  if (error) return res.status(400).end();
+  // ruleid: express-mass-assignment
+  await User.create(value);
+  res.sendStatus(201);
+});
+
+router.post('/accounts/build', async (req, res) => {
+  // ok: express-mass-assignment
+  const account = Account.build(req.body, { fields: ['name', 'email'] });
+  await account.save();
+  res.sendStatus(201);
+});
+
+router.post('/users/imported-schema', async (req, res) => {
+  // Known false positive: the schema is defined in another file, so the rule
+  // cannot see that it drops unknown keys.
+  const data = sharedUserSchema.parse(req.body);
+  // todook: express-mass-assignment
+  await User.create(data);
   res.sendStatus(201);
 });
 

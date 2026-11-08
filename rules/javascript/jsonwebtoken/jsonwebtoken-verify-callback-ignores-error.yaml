@@ -4,7 +4,9 @@ rules:
     severity: ERROR
     message: >-
       The callback passed to `jwt.verify()` never branches on its error argument `$ERR`
-      or on the payload before it continues. Logging the error does not count. When the
+      or on the payload before it continues. Logging the error does not count, and
+      neither does a throw inside the callback, which crashes the process when the key
+      is fetched asynchronously. When the
       signature is wrong, the token has expired or the algorithm is not allowed,
       jsonwebtoken calls the callback with an error and an undefined payload, and this
       code keeps going. If it calls `next()` or returns data, a request with a forged or
@@ -195,36 +197,6 @@ rules:
             ...
           })
       - pattern-not: |
-          $VERIFY(..., function ($ERR, ...) {
-            ...
-            <... next($ERR, ...) ...>;
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., function ($ERR, ...) {
-            ...
-            <... done($ERR, ...) ...>;
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., function ($ERR, ...) {
-            ...
-            <... cb($ERR, ...) ...>;
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., function ($ERR, ...) {
-            ...
-            <... callback($ERR, ...) ...>;
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., function ($ERR, ...) {
-            ...
-            <... reject($ERR, ...) ...>;
-            ...
-          })
-      - pattern-not: |
           $VERIFY(..., ($ERR, ...) => {
             ...
             if ($ERR) { return ...; }
@@ -338,37 +310,109 @@ rules:
             $ERR ? $YES : $NO;
             ...
           })
-      - pattern-not: |
-          $VERIFY(..., ($ERR, ...) => {
-            ...
-            <... next($ERR, ...) ...>;
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., ($ERR, ...) => {
-            ...
-            <... done($ERR, ...) ...>;
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., ($ERR, ...) => {
-            ...
-            <... cb($ERR, ...) ...>;
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., ($ERR, ...) => {
-            ...
-            <... callback($ERR, ...) ...>;
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., ($ERR, ...) => {
-            ...
-            <... reject($ERR, ...) ...>;
-            ...
-          })
       - pattern-not: "$VERIFY(..., ($ERR, ...) => $ERR ? $YES : $NO)"
+      # Forwarding the error counts only as the callback's last top-level statement,
+      # so a forward inside an expired-only branch does not.
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            $...BODY;
+            next($ERR, ...);
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            $...BODY;
+            return next($ERR, ...);
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            $...BODY;
+            done($ERR, ...);
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            $...BODY;
+            return done($ERR, ...);
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            $...BODY;
+            cb($ERR, ...);
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            $...BODY;
+            return cb($ERR, ...);
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            $...BODY;
+            callback($ERR, ...);
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            $...BODY;
+            return callback($ERR, ...);
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            $...BODY;
+            reject($ERR, ...);
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            $...BODY;
+            return reject($ERR, ...);
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            $...BODY;
+            next($ERR, ...);
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            $...BODY;
+            return next($ERR, ...);
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            $...BODY;
+            done($ERR, ...);
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            $...BODY;
+            return done($ERR, ...);
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            $...BODY;
+            cb($ERR, ...);
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            $...BODY;
+            return cb($ERR, ...);
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            $...BODY;
+            callback($ERR, ...);
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            $...BODY;
+            return callback($ERR, ...);
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            $...BODY;
+            reject($ERR, ...);
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            $...BODY;
+            return reject($ERR, ...);
+          })
       - pattern-not: "$VERIFY(..., ($ERR, ...) => next($ERR, ...))"
       - pattern-not: "$VERIFY(..., ($ERR, ...) => done($ERR, ...))"
       - pattern-not: "$VERIFY(..., ($ERR, ...) => cb($ERR, ...))"

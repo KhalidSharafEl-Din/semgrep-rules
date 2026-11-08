@@ -92,6 +92,21 @@ rules:
           - metavariable-regex:
               metavariable: $PREFIX
               regex: ^https?://[^/{}]+/
+      # A literal scheme and host in a format() template.
+      - patterns:
+          - pattern: '"$FMT".format(...)'
+          - metavariable-regex:
+              metavariable: $FMT
+              regex: ^https?://[^/{}]+/
+      # A path that starts with "/" and a non-slash character, for clients built with
+      # base_url. "//host" would be scheme-relative, so it does not count.
+      - patterns:
+          - pattern-either:
+              - pattern: '"$SEP" + $REST'
+              - pattern: f"$SEP{...}..."
+          - metavariable-regex:
+              metavariable: $SEP
+              regex: ^/[^/]
       # So does a base URL from server-side configuration (a settings or config
       # attribute, an environment variable, or an UPPER_CASE module constant), as long
       # as a literal "/" follows it. Without the slash, input such as "@evil.example"

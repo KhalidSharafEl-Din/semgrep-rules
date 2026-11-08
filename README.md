@@ -38,12 +38,13 @@ Two more markers record what the rules get wrong. A line marked `todook:` is a k
 
 ## Known limits
 
-Semgrep matches syntax and follows data within a file. It doesn't follow control flow or imports, so each rule accepts some shapes it can't prove and misses others. These are the ones I know about, and each has a test.
+Semgrep matches syntax and follows data within a file. It doesn't follow control flow or imports, so each rule accepts some shapes it can't prove and misses others. These are the ones I know about. The test files mark each one with `todook:` or `todoruleid:` where a sample can show it.
 
 - `gha-untrusted-input-to-github-env` can't link a YAML `env:` key to the exact shell line that writes the file. It reports a step that only prints the untrusted variable and writes a different one, a key that is a substring of another variable, and a write that a strict regex check already guards. Suppress those with a `nosemgrep` comment that names the check.
 - `jsonwebtoken-verify-callback-ignores-error` accepts a success-only branch such as `if (err === null) { ... }` even when an unconditional `next()` follows it.
 - `express-mongodb-operator-injection` counts any `typeof x !== '<type>'` check that returns as a guard, including the rare `'object'` case. Writing out each type made the rule time out on large files.
 - `express-mass-assignment` and `express-mongodb-operator-injection` only recognise a zod or Joi schema defined in the same file. An imported schema needs a `nosemgrep` comment.
+- The Joi error check in those two rules accepts any `if` that mentions `error` or `result.error` and returns, after a one-argument `validate()` call. It doesn't check that the schema is free of `.unknown(true)`, or that the validated value is the one written.
 - `express-mass-assignment` misses `User.create(req.body.user)` and writes of a `...rest` binding from `req.body`, because Semgrep drops taint on both.
 
 ## Run the rules locally

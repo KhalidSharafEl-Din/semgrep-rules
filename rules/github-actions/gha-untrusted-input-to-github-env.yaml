@@ -88,7 +88,7 @@ rules:
       - metavariable-pattern:
           metavariable: $SCRIPT
           language: generic
-          pattern-regex: (\$\{?[A-Za-z_][A-Za-z0-9_]*\}?[^\n]*>>\s*"?\$\{?GITHUB_(ENV|PATH))|(\}\s*>>\s*"?\$\{?GITHUB_(ENV|PATH))|(tee\s+(-a|--append)\s+"?\$\{?GITHUB_(ENV|PATH))|(>>\s*"?\$\{?GITHUB_(ENV|PATH)\}?"?\s*<<)
+          pattern-regex: (\$\{?[A-Za-z_][A-Za-z0-9_]*\}?[^\n]*>>?\s*"?\$\{?GITHUB_(ENV|PATH))|([})]\s*>>?\s*"?\$\{?GITHUB_(ENV|PATH))|(tee\s+((-a|--append)\s+)?"?\$\{?GITHUB_(ENV|PATH))|(>>?\s*"?\$\{?GITHUB_(ENV|PATH)\}?"?\s*<<)|(<<-?\s*['"]?\w+['"]?\s*>>?\s*"?\$\{?GITHUB_(ENV|PATH))
       # Semgrep cannot compare a YAML key with a token inside a generic block, so the
       # link between the env key and the write is a substring check on the script.
       # The test file marks the known false positives with todook.

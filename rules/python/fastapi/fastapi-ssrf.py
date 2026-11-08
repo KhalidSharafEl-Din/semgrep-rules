@@ -173,3 +173,20 @@ async def region_user(region: str, user_id: int):
         # ok: fastapi-ssrf
         b = await client.get(settings.users_api + f"/users/{user_id}")
     return [a.status_code, b.status_code]
+
+
+@app.get("/rel/{uid}")
+async def relative(uid: str):
+    async with httpx.AsyncClient(base_url=settings.users_api) as client:
+        # ok: fastapi-ssrf
+        resp = await client.get("/users/" + uid)
+    # ok: fastapi-ssrf
+    other = requests.get("https://api.example.com/users/{}".format(uid), timeout=5)
+    return [resp.status_code, other.status_code]
+
+
+@app.get("/scheme-relative")
+def scheme_relative(target: str):
+    # "//" + host is scheme-relative and can change the host.
+    # ruleid: fastapi-ssrf
+    return requests.get("//" + target, timeout=5).text
