@@ -12,6 +12,7 @@ const { sharedUserSchema } = require('./schemas');
 const noteSchema = Joi.object({ text: Joi.string().max(200) });
 const yup = require('yup');
 const yupSignupSchema = yup.object({ name: yup.string(), email: yup.string().email() });
+const idSchema = Joi.object({ id: Joi.string().hex().length(24) });
 const signupSchema = Joi.object({ name: Joi.string(), email: Joi.string().email() });
 const looseObjectSchema = z.looseObject({ name: z.string() });
 const identity = { parse: (x) => x };
@@ -278,6 +279,16 @@ router.post('/signup-joi-abort-allow', async (req, res) => {
   const { value, error } = signupSchema.validate(req.body, { abortEarly: false, allowUnknown: true });
   if (error) return res.status(400).end();
   // ruleid: express-mass-assignment
+  await User.create(value);
+  res.sendStatus(201);
+});
+
+router.put('/profiles/:id', async (req, res) => {
+  const params = idSchema.validate(req.params);
+  if (params.error) return res.status(400).end();
+  const { value } = signupSchema.validate(req.body, { allowUnknown: true });
+  // Known miss: the checked params validate() counts as the guard for this write.
+  // todoruleid: express-mass-assignment
   await User.create(value);
   res.sendStatus(201);
 });
