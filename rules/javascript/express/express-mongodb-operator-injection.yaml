@@ -11,7 +11,7 @@ rules:
       mass delete on `find` and `deleteMany`. To fix it, cast each value to the type
       you expect before it reaches the filter (`String(req.body.email)`), validate the
       body with a schema, or strip `$` keys with a sanitizer such as
-      `express-mongo-sanitize`. Mongoose's `sanitizeFilter` option also blocks this.
+      `express-mongo-sanitize`. Mongoose's `sanitizeFilter` option also blocks this. The rule only recognises a schema defined in the same file, so if yours is imported, add a `nosemgrep` comment that names it.
     metadata:
       category: security
       subcategory: [vuln]
@@ -54,45 +54,56 @@ rules:
               metavariable: $STRING_METHOD
               regex: ^(toLowerCase|toUpperCase|trim|trimStart|trimEnd|normalize|toLocaleLowerCase|toLocaleUpperCase)$
       - pattern: "`...`"
-      # Schema parsers drop unknown keys and check types, unless the schema keeps
-      # unknown keys (zod passthrough, loose or catchall, Joi unknown or allowUnknown).
+      # Schema parsers count only when the schema is defined in this file as a plain
+      # object schema, which drops or rejects unknown keys: z.object(...),
+      # z.object(...).strict(), z.strictObject(...) or Joi.object(...). Chains such
+      # as .passthrough(), .loose(), .catchall(), .unknown() or .options() change the
+      # outer call and do not match. A schema imported from another file is not
+      # recognised, so suppress that finding with a nosemgrep comment.
       - patterns:
           - pattern-either:
               - pattern: $SCHEMA.parse(...)
               - pattern: $SCHEMA.safeParse(...)
               - pattern: $SCHEMA.parseAsync(...)
+              - pattern: $SCHEMA.safeParseAsync(...)
+          - pattern-either:
+              - pattern-inside: |
+                  $SCHEMA = $Z.object(...)
+                  ...
+              - pattern-inside: |
+                  $SCHEMA = $Z.object(...).strict()
+                  ...
+              - pattern-inside: |
+                  $SCHEMA = $Z.object(...).strip()
+                  ...
+              - pattern-inside: |
+                  $SCHEMA = $Z.strictObject(...)
+                  ...
+      - patterns:
+          - pattern-either:
+              - pattern: $SCHEMA.validate(...)
               - pattern: $SCHEMA.validateAsync(...)
-          - pattern-not: JSON.parse(...)
-          - pattern-not: "$SCHEMA.validateAsync($INPUT, {..., allowUnknown: true, ...})"
-          - pattern-not-inside: |
-              $SCHEMA = $Z.$BUILD(...).passthrough(...)
+          - pattern-inside: |
+              $SCHEMA = Joi.object(...)
               ...
-          - pattern-not-inside: |
-              $SCHEMA = $Z.$BUILD(...).$MORE(...).passthrough(...)
-              ...
-          - pattern-not-inside: |
-              $SCHEMA = $Z.$BUILD(...).loose(...)
-              ...
-          - pattern-not-inside: |
-              $SCHEMA = $Z.$BUILD(...).$MORE(...).loose(...)
-              ...
-          - pattern-not-inside: |
-              $SCHEMA = $Z.$BUILD(...).catchall(...)
-              ...
-          - pattern-not-inside: |
-              $SCHEMA = $Z.$BUILD(...).$MORE(...).catchall(...)
-              ...
-          - pattern-not-inside: |
-              $SCHEMA = $Z.$BUILD(...).unknown(...)
-              ...
-          - pattern-not-inside: |
-              $SCHEMA = $Z.$BUILD(...).$MORE(...).unknown(...)
-              ...
+          - pattern-not: "$SCHEMA.$VALIDATE($INPUT, {..., allowUnknown: true, ...})"
+      # Yup and Joi drop unknown keys when told to.
+      - pattern: "$SCHEMA.validate($INPUT, {..., stripUnknown: true, ...})"
+      - pattern: "$SCHEMA.validateSync($INPUT, {..., stripUnknown: true, ...})"
       - pattern: sanitize(...)
       - pattern: $MONGO_SANITIZE.sanitize(...)
       - pattern: mongoSanitize(...)
+      - pattern: $MONGOOSE.sanitizeFilter(...)
+      - pattern: sanitizeFilter(...)
+      # Casts to ObjectId, Date or arrays of scalars.
       - pattern: new ObjectId(...)
+      - pattern: ObjectId(...)
+      - pattern: new $MONGOOSE.Types.ObjectId(...)
       - pattern: $MONGOOSE.Types.ObjectId(...)
+      - pattern: new Types.ObjectId(...)
+      - pattern: new Date(...)
+      - pattern: $X.map(String)
+      - pattern: $X.map(Number)
     pattern-sinks:
       - patterns:
           - pattern-either:
@@ -109,93 +120,75 @@ rules:
               metavariable: $METHOD
               regex: ^(find|findOne|update|remove|findOneAndUpdate|findOneAndDelete|findOneAndReplace|findOneAndRemove|updateOne|updateMany|deleteOne|deleteMany|replaceOne|countDocuments|exists)$
           # Sequelize also has findOne/updateOne-style methods, but its operators are
-          # Symbols (Op.ne), so a JSON object cannot inject one. Skip its `where:` filters.
-          - pattern-not-inside: "$COLLECTION.$METHOD({..., where: $WHERE, ...}, ...)"
+          # Symbols (Op.ne), so a JSON object cannot inject one. Skip a value that is
+          # itself a `where:` clause. Tainted fields next to `where` are still reported.
+          - pattern-not-inside: "$COLLECTION.$METHOD({..., where: $VALUE, ...}, ...)"
           - pattern-not-inside: "$COLLECTION.$METHOD($VALUES, {..., where: $WHERE, ...}, ...)"
           # A one-argument update() is a Sequelize or Mongoose instance update, not a filter.
           - pattern-not-inside: $COLLECTION.update($ONLY_ARGUMENT)
-          # A typeof check is a fix when it rejects anything that is not a string,
-          # number or boolean before the query, or wraps the query in a positive check.
+          # Mongoose's sanitizeFilter query option strips $ operators.
+          - pattern-not-inside: "$COLLECTION.$METHOD($FILTER, $PROJECTION, {..., sanitizeFilter: true, ...})"
+          # A guard that rejects the request before the query is a fix: a typeof check,
+          # an ObjectId check or an allowlist check. The guard can be part of a larger
+          # condition, but its body must end in a return or throw at the top level, so
+          # a nested or conditional return does not count.
           - pattern-not-inside: |
-              if (typeof $VALUE !== "string") { ... return ...; }
+              if (<... typeof $VALUE !== $TYPE ...>) { return ...; }
               ...
           - pattern-not-inside: |
-              if (typeof $VALUE !== "string") { ... throw $ERROR; }
+              if (<... typeof $VALUE !== $TYPE ...>) { $...BEFORE; return ...; }
               ...
           - pattern-not-inside: |
-              if (typeof $VALUE !== "string") return ...;
+              if (<... typeof $VALUE !== $TYPE ...>) { throw $ERROR; }
               ...
           - pattern-not-inside: |
-              if (typeof $VALUE !== "string") throw $ERROR;
+              if (<... typeof $VALUE !== $TYPE ...>) { $...BEFORE; throw $ERROR; }
               ...
           - pattern-not-inside: |
-              if (typeof $VALUE != "string") { ... return ...; }
+              if (<... typeof $VALUE != $TYPE ...>) { return ...; }
               ...
           - pattern-not-inside: |
-              if (typeof $VALUE != "string") { ... throw $ERROR; }
+              if (<... typeof $VALUE != $TYPE ...>) { $...BEFORE; return ...; }
               ...
           - pattern-not-inside: |
-              if (typeof $VALUE != "string") return ...;
+              if (<... typeof $VALUE != $TYPE ...>) { throw $ERROR; }
               ...
           - pattern-not-inside: |
-              if (typeof $VALUE != "string") throw $ERROR;
+              if (<... typeof $VALUE != $TYPE ...>) { $...BEFORE; throw $ERROR; }
               ...
+          - pattern-not-inside: |
+              if (<... !$MONGOOSE.isValidObjectId($VALUE) ...>) { return ...; }
+              ...
+          - pattern-not-inside: |
+              if (<... !$MONGOOSE.isValidObjectId($VALUE) ...>) { $...BEFORE; return ...; }
+              ...
+          - pattern-not-inside: |
+              if (<... !$MONGOOSE.isValidObjectId($VALUE) ...>) { throw $ERROR; }
+              ...
+          - pattern-not-inside: |
+              if (<... !$MONGOOSE.isValidObjectId($VALUE) ...>) { $...BEFORE; throw $ERROR; }
+              ...
+          - pattern-not-inside: |
+              if (<... !$ALLOWED.includes($VALUE) ...>) { return ...; }
+              ...
+          - pattern-not-inside: |
+              if (<... !$ALLOWED.includes($VALUE) ...>) { $...BEFORE; return ...; }
+              ...
+          - pattern-not-inside: |
+              if (<... !$ALLOWED.includes($VALUE) ...>) { throw $ERROR; }
+              ...
+          - pattern-not-inside: |
+              if (<... !$ALLOWED.includes($VALUE) ...>) { $...BEFORE; throw $ERROR; }
+              ...
+          # Or the query runs only inside a positive type check.
           - pattern-not-inside: |
               if (typeof $VALUE === "string") { ... }
           - pattern-not-inside: |
               if (typeof $VALUE == "string") { ... }
           - pattern-not-inside: |
-              if (typeof $VALUE !== "number") { ... return ...; }
-              ...
-          - pattern-not-inside: |
-              if (typeof $VALUE !== "number") { ... throw $ERROR; }
-              ...
-          - pattern-not-inside: |
-              if (typeof $VALUE !== "number") return ...;
-              ...
-          - pattern-not-inside: |
-              if (typeof $VALUE !== "number") throw $ERROR;
-              ...
-          - pattern-not-inside: |
-              if (typeof $VALUE != "number") { ... return ...; }
-              ...
-          - pattern-not-inside: |
-              if (typeof $VALUE != "number") { ... throw $ERROR; }
-              ...
-          - pattern-not-inside: |
-              if (typeof $VALUE != "number") return ...;
-              ...
-          - pattern-not-inside: |
-              if (typeof $VALUE != "number") throw $ERROR;
-              ...
-          - pattern-not-inside: |
               if (typeof $VALUE === "number") { ... }
           - pattern-not-inside: |
               if (typeof $VALUE == "number") { ... }
-          - pattern-not-inside: |
-              if (typeof $VALUE !== "boolean") { ... return ...; }
-              ...
-          - pattern-not-inside: |
-              if (typeof $VALUE !== "boolean") { ... throw $ERROR; }
-              ...
-          - pattern-not-inside: |
-              if (typeof $VALUE !== "boolean") return ...;
-              ...
-          - pattern-not-inside: |
-              if (typeof $VALUE !== "boolean") throw $ERROR;
-              ...
-          - pattern-not-inside: |
-              if (typeof $VALUE != "boolean") { ... return ...; }
-              ...
-          - pattern-not-inside: |
-              if (typeof $VALUE != "boolean") { ... throw $ERROR; }
-              ...
-          - pattern-not-inside: |
-              if (typeof $VALUE != "boolean") return ...;
-              ...
-          - pattern-not-inside: |
-              if (typeof $VALUE != "boolean") throw $ERROR;
-              ...
           - pattern-not-inside: |
               if (typeof $VALUE === "boolean") { ... }
           - pattern-not-inside: |

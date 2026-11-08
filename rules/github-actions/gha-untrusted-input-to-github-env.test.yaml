@@ -59,10 +59,10 @@ jobs:
           echo "Title: $ISSUE_TITLE"
           echo "SAFE=value" >> "$GITHUB_ENV"
 
-      - name: Validated before writing
+      - name: Validated before writing, still reported, suppress with nosemgrep
         env:
           HEAD_REF: ${{ github.head_ref }}
-        # ok: gha-untrusted-input-to-github-env
+        # todook: gha-untrusted-input-to-github-env
         run: |
           [[ "$HEAD_REF" =~ ^[A-Za-z0-9._/-]+$ ]] || exit 1
           echo "BRANCH=$HEAD_REF" >> "$GITHUB_ENV"
@@ -80,6 +80,14 @@ jobs:
           TITLE: ${{ github.event.issue.title }}
         # todook: gha-untrusted-input-to-github-env
         run: echo "SUBTITLE=$SUBTITLE" >> "$GITHUB_ENV"
+
+      - name: A weak check does not make the write safe
+        env:
+          TITLE: ${{ github.event.issue.title }}
+        # ruleid: gha-untrusted-input-to-github-env
+        run: |
+          [[ "$TITLE" =~ .* ]] || exit 1
+          echo "TITLE=$TITLE" >> "$GITHUB_ENV"
 
   job-env:
     runs-on: ubuntu-latest

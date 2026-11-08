@@ -9,6 +9,11 @@ const Joi = require('joi');
 const { Invoice } = require('./sequelize-models');
 
 const noteSchema = Joi.object({ text: Joi.string().max(200) });
+const yup = require('yup');
+const yupSignupSchema = yup.object({ name: yup.string(), email: yup.string().email() });
+const signupSchema = Joi.object({ name: Joi.string(), email: Joi.string().email() });
+const looseObjectSchema = z.looseObject({ name: z.string() });
+const identity = { parse: (x) => x };
 const openProfileSchema = z.object({ name: z.string() }).passthrough();
 
 const prisma = new PrismaClient();
@@ -137,6 +142,42 @@ router.post('/notes-open', async (req, res) => {
   const note = await noteSchema.validateAsync(req.body, { allowUnknown: true });
   // ruleid: express-mass-assignment
   await prisma.note.create({ data: note });
+  res.sendStatus(201);
+});
+
+router.post('/signup-joi', async (req, res) => {
+  const { value, error } = signupSchema.validate(req.body);
+  if (error) return res.status(400).end();
+  // ok: express-mass-assignment
+  await User.create(value);
+  res.sendStatus(201);
+});
+
+router.post('/signup-yup', async (req, res) => {
+  const value = await yupSignupSchema.validate(req.body, { stripUnknown: true });
+  // ok: express-mass-assignment
+  await User.create(value);
+  res.sendStatus(201);
+});
+
+router.post('/signup-yup-unsafe', async (req, res) => {
+  const value = await yupSignupSchema.validate(req.body);
+  // ruleid: express-mass-assignment
+  await User.create(value);
+  res.sendStatus(201);
+});
+
+router.post('/profile-loose-object', async (req, res) => {
+  const data = looseObjectSchema.parse(req.body);
+  // ruleid: express-mass-assignment
+  await User.create(data);
+  res.sendStatus(201);
+});
+
+router.post('/profile-identity', async (req, res) => {
+  const data = identity.parse(req.body);
+  // ruleid: express-mass-assignment
+  await User.create(data);
   res.sendStatus(201);
 });
 

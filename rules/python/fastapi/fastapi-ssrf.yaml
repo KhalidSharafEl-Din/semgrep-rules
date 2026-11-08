@@ -3,6 +3,9 @@ rules:
     languages: [python]
     severity: ERROR
     mode: taint
+    options:
+      # REGION_HOSTS[region] picks a server-side value; the key is not the URL.
+      taint_assume_safe_indexes: true
     message: >-
       A FastAPI request parameter reaches the URL of an outbound HTTP call. An attacker
       can point the server at internal services, cloud metadata endpoints such as
@@ -30,7 +33,7 @@ rules:
         - https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_%28SSRF%29/
       registry-comparison: >-
         The community registry has SSRF taint rules for Flask and Django with `requests`
-        and `urllib` sinks, but no FastAPI rules. This rule treats FastAPI route
+        and `urllib` sinks, but no FastAPI SSRF rule. This rule treats FastAPI route
         parameters as sources and adds `httpx` and `aiohttp` sinks, which async FastAPI
         services use more than `requests`.
     pattern-sources:

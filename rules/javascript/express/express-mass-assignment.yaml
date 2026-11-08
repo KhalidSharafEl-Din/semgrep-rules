@@ -9,7 +9,7 @@ rules:
       the ORM saves them. To fix it, copy only the fields this endpoint may change, for
       example `const { name, email } = req.body; await User.create({ name, email });`,
       or parse the body with a schema that drops unknown keys, such as zod's
-      `schema.parse(req.body)` or express-validator's `matchedData(req)`.
+      `schema.parse(req.body)` or express-validator's `matchedData(req)`. The rule only recognises a schema defined in the same file, so if yours is imported, add a `nosemgrep` comment that names it.
     metadata:
       category: security
       subcategory: [vuln]
@@ -43,40 +43,42 @@ rules:
       - pattern: $REQ.body[$KEY]
       - pattern: $LODASH.pick(...)
       - pattern: pick(...)
-      # Schema parsers drop unknown keys and check types, unless the schema keeps
-      # unknown keys (zod passthrough, loose or catchall, Joi unknown or allowUnknown).
+      # Schema parsers count only when the schema is defined in this file as a plain
+      # object schema, which drops or rejects unknown keys: z.object(...),
+      # z.object(...).strict(), z.strictObject(...) or Joi.object(...). Chains such
+      # as .passthrough(), .loose(), .catchall(), .unknown() or .options() change the
+      # outer call and do not match. A schema imported from another file is not
+      # recognised, so suppress that finding with a nosemgrep comment.
       - patterns:
           - pattern-either:
               - pattern: $SCHEMA.parse(...)
               - pattern: $SCHEMA.safeParse(...)
               - pattern: $SCHEMA.parseAsync(...)
+              - pattern: $SCHEMA.safeParseAsync(...)
+          - pattern-either:
+              - pattern-inside: |
+                  $SCHEMA = $Z.object(...)
+                  ...
+              - pattern-inside: |
+                  $SCHEMA = $Z.object(...).strict()
+                  ...
+              - pattern-inside: |
+                  $SCHEMA = $Z.object(...).strip()
+                  ...
+              - pattern-inside: |
+                  $SCHEMA = $Z.strictObject(...)
+                  ...
+      - patterns:
+          - pattern-either:
+              - pattern: $SCHEMA.validate(...)
               - pattern: $SCHEMA.validateAsync(...)
-          - pattern-not: JSON.parse(...)
-          - pattern-not: "$SCHEMA.validateAsync($INPUT, {..., allowUnknown: true, ...})"
-          - pattern-not-inside: |
-              $SCHEMA = $Z.$BUILD(...).passthrough(...)
+          - pattern-inside: |
+              $SCHEMA = Joi.object(...)
               ...
-          - pattern-not-inside: |
-              $SCHEMA = $Z.$BUILD(...).$MORE(...).passthrough(...)
-              ...
-          - pattern-not-inside: |
-              $SCHEMA = $Z.$BUILD(...).loose(...)
-              ...
-          - pattern-not-inside: |
-              $SCHEMA = $Z.$BUILD(...).$MORE(...).loose(...)
-              ...
-          - pattern-not-inside: |
-              $SCHEMA = $Z.$BUILD(...).catchall(...)
-              ...
-          - pattern-not-inside: |
-              $SCHEMA = $Z.$BUILD(...).$MORE(...).catchall(...)
-              ...
-          - pattern-not-inside: |
-              $SCHEMA = $Z.$BUILD(...).unknown(...)
-              ...
-          - pattern-not-inside: |
-              $SCHEMA = $Z.$BUILD(...).$MORE(...).unknown(...)
-              ...
+          - pattern-not: "$SCHEMA.$VALIDATE($INPUT, {..., allowUnknown: true, ...})"
+      # Yup and Joi drop unknown keys when told to.
+      - pattern: "$SCHEMA.validate($INPUT, {..., stripUnknown: true, ...})"
+      - pattern: "$SCHEMA.validateSync($INPUT, {..., stripUnknown: true, ...})"
       - pattern: matchedData(...)
     pattern-sinks:
       - patterns:

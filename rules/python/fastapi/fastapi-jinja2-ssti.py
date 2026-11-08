@@ -73,3 +73,9 @@ def motd(message: str = Query(default="Hello")):
 def email(kind: str, name: str):
     # ok: fastapi-jinja2-ssti
     return env.from_string(EMAILS[kind]).render(name=name)
+
+
+@app.get("/email-default/{kind}", response_class=HTMLResponse)
+def email_default(kind: str, name: str):
+    # ok: fastapi-jinja2-ssti
+    return env.from_string(EMAILS.get(kind, EMAILS["welcome"])).render(name=name)

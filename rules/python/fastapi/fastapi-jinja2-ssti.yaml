@@ -81,6 +81,13 @@ rules:
           - pattern-not-inside: |
               async def $FUNC(..., $PARAM: Annotated[$TYPE, Security(...)] = $DEFAULT, ...): ...
           - focus-metavariable: $PARAM
+    pattern-sanitizers:
+      # A lookup in an UPPER_CASE mapping of templates, TEMPLATES.get(kind, DEFAULT).
+      - patterns:
+          - pattern: $TEMPLATES.get(...)
+          - metavariable-regex:
+              metavariable: $TEMPLATES
+              regex: ^[A-Z][A-Z0-9_]*$
     pattern-sinks:
       - patterns:
           - pattern-either:

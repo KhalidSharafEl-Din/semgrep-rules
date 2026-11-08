@@ -14,8 +14,8 @@ rules:
       `$GITHUB_ENV` or `$GITHUB_PATH`. Pass the value to later steps as an `env:` entry or
       a step output instead. If you must use the env file, validate the value against a
       strict pattern in the same step, for example
-      `[[ "$$ENVVAR" =~ ^[A-Za-z0-9._-]+$ ]] || exit 1`. This rule skips steps that
-      contain a `=~` check.
+      `[[ "$$ENVVAR" =~ ^[A-Za-z0-9._-]+$ ]] || exit 1`, then add a `# nosemgrep`
+      comment that names the check. This rule cannot tell whether a check is strict.
     metadata:
       category: security
       subcategory: [vuln]
@@ -90,6 +90,6 @@ rules:
           pattern-regex: \$\{?[A-Za-z_][A-Za-z0-9_]*\}?[^\n]*>>\s*"?\$\{?GITHUB_(ENV|PATH)
       # Semgrep cannot compare a YAML key with a token inside a generic block, so the
       # link between the env key and the write is a substring check on the script.
-      # The test file marks the two known false positives with todook.
+      # The test file marks the known false positives with todook.
       - metavariable-comparison:
-          comparison: str($ENVVAR) in str($SCRIPT) and not ("=~" in str($SCRIPT))
+          comparison: str($ENVVAR) in str($SCRIPT)

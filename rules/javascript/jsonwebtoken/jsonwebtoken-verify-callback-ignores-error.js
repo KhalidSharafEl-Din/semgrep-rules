@@ -85,8 +85,49 @@ function ifElse(req, res, next) {
   });
 }
 
+function logsInBranch(req, res, next) {
+  // ruleid: jsonwebtoken-verify-callback-ignores-error
+  jwt.verify(req.cookies.session, PUBLIC_KEY, (err, payload) => {
+    if (err) console.log(err);
+    req.user = payload;
+    next();
+  });
+}
+
+function payloadLogOnly(req, res, next) {
+  // ruleid: jsonwebtoken-verify-callback-ignores-error
+  jwt.verify(req.cookies.session, PUBLIC_KEY, (err, payload) => {
+    if (!payload) console.log('missing payload');
+    req.user = payload;
+    next();
+  });
+}
+
+function forwardsToNext(req, res, next) {
+  // ok: jsonwebtoken-verify-callback-ignores-error
+  jwt.verify(req.cookies.session, PUBLIC_KEY, (err, payload) => {
+    req.user = payload;
+    return next(err);
+  });
+}
+
+function nodeCallback(token, done) {
+  // ok: jsonwebtoken-verify-callback-ignores-error
+  jwt.verify(token, PUBLIC_KEY, (err, decoded) => done(err, decoded));
+}
+
+function refreshSession(req, res, next) {
+  // ok: jsonwebtoken-verify-callback-ignores-error
+  jwt.verify(req.cookies.session, PUBLIC_KEY, (err, decoded) => {
+    if (err === null && decoded) {
+      res.cookie('session', req.cookies.session);
+    }
+  });
+  next();
+}
+
 app.get('/me', requireUser, (req, res) => res.json(req.user));
 app.get('/session', sessionInfo);
 app.get('/admin', requireAdmin, (req, res) => res.send('ok'));
 
-module.exports = { logsOnly, ifElse, requireUserChecked, forwardError, payloadGuard, synchronous, checkToken };
+module.exports = { refreshSession, logsInBranch, payloadLogOnly, forwardsToNext, nodeCallback, logsOnly, ifElse, requireUserChecked, forwardError, payloadGuard, synchronous, checkToken };

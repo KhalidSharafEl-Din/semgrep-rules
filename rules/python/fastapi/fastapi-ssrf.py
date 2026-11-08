@@ -14,6 +14,7 @@ router = APIRouter()
 
 PARTNER_API = "https://partner.example.com/v1/"
 INVENTORY_API = os.environ["INVENTORY_API"]
+REGION_HOSTS = {"eu": "https://eu.api.example.com", "us": "https://us.api.example.com"}
 
 
 class Settings:
@@ -156,3 +157,9 @@ audit_log = AuditLog()
 def audit(url: str):
     # ok: fastapi-ssrf
     return audit_log.request("GET", url)
+
+
+@app.get("/region/{region}/health")
+def region_health(region: str):
+    # ok: fastapi-ssrf
+    return requests.get(REGION_HOSTS[region], timeout=5).status_code

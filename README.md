@@ -33,7 +33,7 @@ That result took two changes to the rule after the first run. It now skips Seque
 
 ## What the tests prove
 
-`semgrep --test` checks that every line marked `ruleid:` produces a finding and every line marked `ok:` doesn't. So the tests prove each rule behaves as described on the samples in this repository. I haven't measured false-positive rates on real codebases. Lines marked `todook:` are known false positives that a rule still reports. The two in the `$GITHUB_ENV` rule come from a Semgrep limit: it can't link a YAML `env:` key to the exact line of shell that writes the file.
+`semgrep --test` checks that every line marked `ruleid:` produces a finding and every line marked `ok:` doesn't. So the tests prove each rule behaves as described on the samples in this repository. I haven't measured false-positive rates on real codebases. Lines marked `todook:` are known false positives that a rule still reports. The three in the `$GITHUB_ENV` rule come from Semgrep limits: it can't link a YAML `env:` key to the exact line of shell that writes the file, and it can't judge whether a validation regex is strict.
 
 ## Run the rules locally
 

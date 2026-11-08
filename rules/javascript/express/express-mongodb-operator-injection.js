@@ -3,6 +3,10 @@ const bcrypt = require('bcrypt');
 const { z } = require('zod');
 const User = require('./models/user');
 const db = require('./db');
+const mongoose = require('mongoose');
+const Joi = require('joi');
+
+const loginSchema = Joi.object({ email: Joi.string().email(), password: Joi.string() });
 const { WalletModel } = require('./sequelize-models');
 
 const app = express();
@@ -10,6 +14,7 @@ app.use(express.json());
 
 const searchSchema = z.object({ status: z.enum(['open', 'closed']) });
 const looseSchema = z.object({ status: z.string() }).passthrough();
+const anySchema = z.any();
 
 app.post('/login', async (req, res) => {
   // ruleid: express-mongodb-operator-injection
@@ -150,6 +155,92 @@ app.post('/search-strict', async (req, res) => {
   const filter = searchSchema.parse(req.body);
   // ok: express-mongodb-operator-injection
   res.json(await db.collection('orders').find(filter).toArray());
+});
+
+app.post('/login-sanitized', async (req, res) => {
+  // ok: express-mongodb-operator-injection
+  const user = await User.findOne(mongoose.sanitizeFilter({ email: req.body.email }));
+  res.json({ found: Boolean(user) });
+});
+
+app.post('/login-option', async (req, res) => {
+  // ok: express-mongodb-operator-injection
+  const user = await User.findOne({ email: req.body.email }, null, { sanitizeFilter: true });
+  res.json({ found: Boolean(user) });
+});
+
+app.get('/orders/by-id', async (req, res) => {
+  // ok: express-mongodb-operator-injection
+  const order = await db.collection('orders').findOne({ _id: new mongoose.Types.ObjectId(req.query.id) });
+  res.json(order);
+});
+
+app.get('/orders/since', async (req, res) => {
+  // ok: express-mongodb-operator-injection
+  const orders = await db.collection('orders').find({ createdAt: { $gte: new Date(req.query.since) } }).toArray();
+  res.json(orders);
+});
+
+app.post('/login-compound', async (req, res) => {
+  const { email, password } = req.body;
+  if (typeof email !== 'string' || typeof password !== 'string') return res.status(400).end();
+  // ok: express-mongodb-operator-injection
+  const user = await User.findOne({ email });
+  res.json({ found: Boolean(user && password) });
+});
+
+app.post('/login-compound-2', async (req, res) => {
+  const email = req.body.email;
+  if (!email || typeof email !== 'string') {
+    return res.status(400).end();
+  }
+  // ok: express-mongodb-operator-injection
+  res.json(await User.findOne({ email }));
+});
+
+app.get('/orders/valid-id', async (req, res) => {
+  const id = req.query.id;
+  if (!mongoose.isValidObjectId(id)) return res.status(400).end();
+  // ok: express-mongodb-operator-injection
+  res.json(await db.collection('orders').findOne({ _id: id }));
+});
+
+app.get('/orders/by-status', async (req, res) => {
+  const status = req.query.status;
+  if (!['open', 'closed'].includes(status)) return res.status(400).end();
+  // ok: express-mongodb-operator-injection
+  res.json(await db.collection('orders').find({ status }).toArray());
+});
+
+app.post('/orders/batch', async (req, res) => {
+  // ok: express-mongodb-operator-injection
+  res.json(await db.collection('orders').find({ _id: { $in: req.body.ids.map(String) } }).toArray());
+});
+
+app.post('/login-joi', async (req, res) => {
+  const { value } = loginSchema.validate(req.body);
+  // ok: express-mongodb-operator-injection
+  res.json(await User.findOne({ email: value.email }));
+});
+
+app.post('/login-nested-guard', async (req, res) => {
+  const password = req.body.password;
+  if (typeof password !== 'string') {
+    if (req.query.reject) return res.end();
+  }
+  // ruleid: express-mongodb-operator-injection
+  res.json(await User.findOne({ password }));
+});
+
+app.post('/search-any', async (req, res) => {
+  const filter = anySchema.parse(req.body);
+  // ruleid: express-mongodb-operator-injection
+  res.json(await db.collection('orders').find(filter).toArray());
+});
+
+app.post('/users/where-sibling', async (req, res) => {
+  // ruleid: express-mongodb-operator-injection
+  res.json(await User.findOne({ name: req.body.name, where: { archived: false } }));
 });
 
 module.exports = app;
