@@ -242,4 +242,36 @@ router.post('/users/imported-schema', async (req, res) => {
   res.sendStatus(201);
 });
 
+router.post('/signup-joi-abort-early', async (req, res) => {
+  const { value, error } = signupSchema.validate(req.body, { abortEarly: false });
+  if (error) return res.status(400).json(error.details);
+  // ok: express-mass-assignment
+  await User.create(value);
+  res.sendStatus(201);
+});
+
+router.post('/signup-joi-strip', async (req, res) => {
+  const { value } = signupSchema.validate(req.body, { stripUnknown: true });
+  // ok: express-mass-assignment
+  await User.create(value);
+  res.sendStatus(201);
+});
+
+router.post('/signup-joi-result-throw', async (req, res) => {
+  const result = signupSchema.validate(req.body);
+  if (result.error) {
+    console.warn('invalid signup');
+    throw new Error('invalid signup');
+  }
+  // ok: express-mass-assignment
+  await User.create(result.value);
+  res.sendStatus(201);
+});
+
+router.post('/accounts/bulk', async (req, res) => {
+  // ok: express-mass-assignment
+  await Account.bulkCreate(req.body, { fields: ['name', 'email'] });
+  res.sendStatus(201);
+});
+
 module.exports = router;

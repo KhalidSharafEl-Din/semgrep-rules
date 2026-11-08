@@ -284,4 +284,23 @@ app.post('/login-object-guard', async (req, res) => {
   res.json(await User.findOne({ email }));
 });
 
+app.post('/login-joi-abort-early', async (req, res) => {
+  const { value, error } = loginSchema.validate(req.body, { abortEarly: false });
+  if (error) return res.status(400).end();
+  // ok: express-mongodb-operator-injection
+  res.json(await User.findOne({ email: value.email }));
+});
+
+app.post('/login-joi-strip-ignored', async (req, res) => {
+  // stripUnknown keeps an operator object under a known key when the error is ignored.
+  const { value } = loginSchema.validate(req.body, { stripUnknown: true });
+  // ruleid: express-mongodb-operator-injection
+  res.json(await User.findOne({ email: value.email }));
+});
+
+app.post('/orders/batch-ids', async (req, res) => {
+  // ok: express-mongodb-operator-injection
+  res.json(await db.collection('orders').find({ _id: { $in: req.body.ids.map((id) => new mongoose.Types.ObjectId(id)) } }).toArray());
+});
+
 module.exports = app;

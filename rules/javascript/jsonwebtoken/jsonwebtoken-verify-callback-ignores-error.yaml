@@ -34,6 +34,8 @@ rules:
         The community jsonwebtoken rules cover hardcoded secrets, the `none` algorithm
         and `jwt.decode()` without `jwt.verify()`. None of them checks whether the
         `jwt.verify()` callback handles its error.
+    # Semgrep has no control-flow matching inside callbacks, so every accepted way of
+    # handling the error is listed below and backed by a test.
     # Layout:
     # 1. Find jwt.verify() calls with a callback, for each way of importing jsonwebtoken.
     # 2-4. Drop callbacks that handle the error, only act on success, or check the
