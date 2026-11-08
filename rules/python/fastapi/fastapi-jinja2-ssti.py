@@ -79,3 +79,9 @@ def email(kind: str, name: str):
 def email_default(kind: str, name: str):
     # ok: fastapi-jinja2-ssti
     return env.from_string(EMAILS.get(kind, EMAILS["welcome"])).render(name=name)
+
+
+@app.get("/email-fallback/{kind}", response_class=HTMLResponse)
+def email_fallback(kind: str, source: str):
+    # ruleid: fastapi-jinja2-ssti
+    return env.from_string(EMAILS.get(kind, source)).render()

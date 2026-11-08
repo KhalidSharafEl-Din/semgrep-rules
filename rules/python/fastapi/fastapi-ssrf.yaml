@@ -9,9 +9,9 @@ rules:
     message: >-
       A FastAPI request parameter reaches the URL of an outbound HTTP call. An attacker
       can point the server at internal services, cloud metadata endpoints such as
-      169.254.169.254, or localhost admin ports, and read the response or trigger
-      side effects. To fix it, keep the scheme and host fixed in code and put user
-      input only in the path or query, for example
+      169.254.169.254, or localhost admin ports, and read the response or trigger side
+      effects. To fix it, keep the scheme and host fixed in code and put user input only
+      in the path or query, for example
       `httpx.get(f"https://api.example.com/users/{user_id}")`. If users must supply a
       full URL, parse it, compare the hostname against an allowlist, resolve it and
       reject private, loopback and link-local addresses, and disable redirects.
@@ -104,6 +104,11 @@ rules:
                       metavariable: $SEP
                       regex: ^/
               - patterns:
+                  - pattern: $BASE + f"$SEP{...}..."
+                  - metavariable-regex:
+                      metavariable: $SEP
+                      regex: ^/
+              - patterns:
                   - pattern: $BASE + "$SEP" + $REST
                   - metavariable-regex:
                       metavariable: $SEP
@@ -116,7 +121,7 @@ rules:
           - metavariable-pattern:
               metavariable: $BASE
               language: generic
-              pattern-regex: \A((settings|config|app_settings|cfg)\.[A-Za-z_]\w*|os\.(environ|getenv)(\W.*)?|[A-Z][A-Z0-9_]*)\Z
+              pattern-regex: \A((settings|config|app_settings|cfg)\.[A-Za-z_]\w*|os\.(environ|getenv)(\W.*)?|[A-Z][A-Z0-9_]*(\[[^\]]*\])?)\Z
     pattern-sinks:
       - patterns:
           - pattern-either:

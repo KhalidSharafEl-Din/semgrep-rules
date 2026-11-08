@@ -2,9 +2,9 @@
 
 [![ci](https://github.com/KhalidSharafEl-Din/semgrep-rules/actions/workflows/ci.yml/badge.svg)](https://github.com/KhalidSharafEl-Din/semgrep-rules/actions/workflows/ci.yml)
 
-Ten custom Semgrep rules that catch cases the community registry misses in GitHub Actions workflows and in Node.js and Python web backends. Each rule has a test file with vulnerable and safe samples, and CI runs every test on each push and pull request.
+Nine custom Semgrep rules that catch cases the community registry misses in GitHub Actions workflows and in Node.js and Python web backends. Each rule has a test file with vulnerable and safe samples, and CI runs every test on each push and pull request.
 
-I picked these from bug classes I run into when triaging pipeline findings and testing web and mobile backends. Before writing a rule, I checked the [semgrep/semgrep-rules](https://github.com/semgrep/semgrep-rules) repository at commit `16b9e6d` (October 2026) and kept only rules that catch something it doesn't. The `registry-comparison` field in each rule's metadata names the closest community rule and what it misses.
+I picked these from bug classes I run into when triaging pipeline findings and testing web and mobile backends. Before writing a rule, I checked the [semgrep/semgrep-rules](https://github.com/semgrep/semgrep-rules) repository at commit `16b9e6d` (October 2026) and kept only rules that catch something it doesn't. The `registry-comparison` field in each rule's metadata names the closest community rule and what it misses. I dropped a tenth rule, for pickle-based model loaders such as `torch.load`, after finding that the Trail of Bits rules in the Semgrep Registry already cover them.
 
 ## Rules
 
@@ -15,7 +15,6 @@ I picked these from bug classes I run into when triaging pipeline findings and t
 | [`fastapi-ssrf`](rules/python/fastapi/fastapi-ssrf.yaml) | Python | CWE-918 | FastAPI route parameters that reach the URL of a `requests`, `httpx`, `aiohttp` or `urllib` call. |
 | [`fastapi-jinja2-ssti`](rules/python/fastapi/fastapi-jinja2-ssti.yaml) | Python | CWE-1336 | FastAPI route parameters used as the source of a Jinja2 template. |
 | [`python-jwt-claim-validation-disabled`](rules/python/jwt/python-jwt-claim-validation-disabled.yaml) | Python | CWE-613, CWE-1390 | PyJWT and python-jose calls that turn off `verify_exp`, `verify_aud`, `verify_iss` or another claim check. |
-| [`python-pickle-based-model-load`](rules/python/deserialization/python-pickle-based-model-load.yaml) | Python | CWE-502 | `torch.load` without `weights_only=True`, `numpy.load(allow_pickle=True)`, `joblib.load` and `pandas.read_pickle`. |
 | [`drf-anonymous-write-endpoint`](rules/python/django-rest-framework/drf-anonymous-write-endpoint.yaml) | Python | CWE-862, CWE-639 | Django REST Framework views that can update or delete objects but set `AllowAny` or empty permission classes. |
 | [`jsonwebtoken-verify-callback-ignores-error`](rules/javascript/jsonwebtoken/jsonwebtoken-verify-callback-ignores-error.yaml) | JavaScript, TypeScript | CWE-347, CWE-754 | `jwt.verify()` callbacks that never check their error argument or the payload before continuing, so a forged or expired token can get through. |
 | [`express-mass-assignment`](rules/javascript/express/express-mass-assignment.yaml) | JavaScript, TypeScript | CWE-915 | The whole `req.body` passed to a Mongoose, Sequelize or Prisma write. |
@@ -29,11 +28,23 @@ Each message says what's wrong, why it matters and how to fix it, with a code ex
 
 I ran the pack against [OWASP Juice Shop](https://github.com/juice-shop/juice-shop) at commit `717f5ef`. In `routes/`, the MongoDB rule reported five lines where a request body value reaches a MarsDB filter without a cast. One of them is the line Juice Shop labels `noSqlReviewsChallenge`. Juice Shop also ships three candidate fixes for that bug in `data/static/codefixes/`. The rule flags the two marked as wrong and stays quiet on the one marked correct, which rejects non-string IDs with a `typeof` check.
 
-That result took two changes to the rule after the first run. It now skips Sequelize queries, which this attack doesn't affect, and it accepts `typeof` guards. Both cases have tests. The other nine rules reported nothing in Juice Shop.
+That result took two changes to the rule after the first run. It now skips Sequelize queries, which this attack doesn't affect, and it accepts `typeof` guards. Both cases have tests. The other eight rules reported nothing in Juice Shop.
 
 ## What the tests prove
 
-`semgrep --test` checks that every line marked `ruleid:` produces a finding and every line marked `ok:` doesn't. So the tests prove each rule behaves as described on the samples in this repository. I haven't measured false-positive rates on real codebases. Lines marked `todook:` are known false positives that a rule still reports. The three in the `$GITHUB_ENV` rule come from Semgrep limits: it can't link a YAML `env:` key to the exact line of shell that writes the file, and it can't judge whether a validation regex is strict.
+`semgrep --test` checks that every line marked `ruleid:` produces a finding and every line marked `ok:` doesn't. So the tests prove each rule behaves as described on the samples in this repository. I haven't measured false-positive rates on real codebases.
+
+Two more markers record what the rules get wrong. A line marked `todook:` is a known false positive that a rule still reports, and a line marked `todoruleid:` is a known miss.
+
+## Known limits
+
+Semgrep matches syntax and follows data within a file. It doesn't follow control flow or imports, so each rule accepts some shapes it can't prove and misses others. These are the ones I know about, and each has a test.
+
+- `gha-untrusted-input-to-github-env` can't link a YAML `env:` key to the exact shell line that writes the file. It reports a step that only prints the untrusted variable and writes a different one, a key that is a substring of another variable, and a write that a strict regex check already guards. Suppress those with a `nosemgrep` comment that names the check.
+- `jsonwebtoken-verify-callback-ignores-error` accepts a success-only branch such as `if (err === null) { ... }` even when an unconditional `next()` follows it.
+- `express-mongodb-operator-injection` counts any `typeof x !== '<type>'` check that returns as a guard, including the rare `'object'` case. Writing out each type made the rule time out on large files.
+- `express-mass-assignment` and `express-mongodb-operator-injection` only recognise a zod or Joi schema defined in the same file. An imported schema needs a `nosemgrep` comment.
+- `express-mass-assignment` misses `User.create(req.body.user)` and writes of a `...rest` binding from `req.body`, because Semgrep drops taint on both.
 
 ## Run the rules locally
 
@@ -118,7 +129,7 @@ Check that repository's README for the current input names before you copy this.
 When a finding is safe in your code, add a `nosemgrep` comment on the reported line with the rule ID and the reason:
 
 ```python
-model = torch.load(path)  # nosemgrep: python-pickle-based-model-load -- file is built by our own pipeline and stored read-only
+resp = httpx.post(hook.url, json=event)  # nosemgrep: fastapi-ssrf -- hook.url is checked against ALLOWED_HOSTS in validate_hook()
 ```
 
 If a rule is wrong in a way that would affect other code too, please open an issue with a short sample.
@@ -129,7 +140,7 @@ If a rule is wrong in a way that would affect other code too, please open an iss
 rules/
   github-actions/      workflow rules, tests in <rule>.test.yaml
   javascript/          Express and jsonwebtoken rules, tests in <rule>.js
-  python/              FastAPI, Django REST Framework, JWT and deserialization rules, tests in <rule>.py
+  python/              FastAPI, Django REST Framework and JWT rules, tests in <rule>.py
 scripts/lint-rules.sh  runs the semgrep-rules lint pack
 ```
 

@@ -126,8 +126,27 @@ function refreshSession(req, res, next) {
   next();
 }
 
+function expiredOnly(req, res, next) {
+  // A forged token raises JsonWebTokenError, skips this branch and reaches next().
+  // ruleid: jsonwebtoken-verify-callback-ignores-error
+  jwt.verify(req.cookies.session, PUBLIC_KEY, (err, payload) => {
+    if (err && err.name === 'TokenExpiredError') return res.status(401).json({ error: 'expired' });
+    req.user = payload;
+    next();
+  });
+}
+
+function notNull(req, res, next) {
+  // ok: jsonwebtoken-verify-callback-ignores-error
+  jwt.verify(req.cookies.session, PUBLIC_KEY, (err, payload) => {
+    if (err !== null) return res.status(401).end();
+    req.user = payload;
+    next();
+  });
+}
+
 app.get('/me', requireUser, (req, res) => res.json(req.user));
 app.get('/session', sessionInfo);
 app.get('/admin', requireAdmin, (req, res) => res.send('ok'));
 
-module.exports = { refreshSession, logsInBranch, payloadLogOnly, forwardsToNext, nodeCallback, logsOnly, ifElse, requireUserChecked, forwardError, payloadGuard, synchronous, checkToken };
+module.exports = { expiredOnly, notNull, refreshSession, logsInBranch, payloadLogOnly, forwardsToNext, nodeCallback, logsOnly, ifElse, requireUserChecked, forwardError, payloadGuard, synchronous, checkToken };

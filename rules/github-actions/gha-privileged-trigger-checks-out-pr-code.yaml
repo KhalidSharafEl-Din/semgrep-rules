@@ -5,14 +5,14 @@ rules:
     message: >-
       This workflow runs on `pull_request_target`, `issue_comment` or `workflow_run`.
       Those triggers get a write-capable `GITHUB_TOKEN` and repository secrets even when
-      a fork opened the pull request, and this step fetches the pull request's own code. Any build, install, test or lint command that runs
-      after this line executes the attacker's code with those secrets. To fix it, move
-      work that runs pull request code to a `pull_request` workflow, which gets no
-      secrets for forks. If a privileged step needs the result, let the `pull_request`
-      workflow upload it as an artifact and have a `workflow_run` workflow read it as
-      data only. If this job only reads files and never executes them, check out into a
-      separate `path:`, set `persist-credentials: false`, and add a `# nosemgrep` comment
-      that says why.
+      a fork opened the pull request, and this step fetches the pull request's own code.
+      Any build, install, test or lint command that runs after this line executes the
+      attacker's code with those secrets. To fix it, move work that runs pull request
+      code to a `pull_request` workflow, which gets no secrets for forks. If a
+      privileged step needs the result, let the `pull_request` workflow upload it as an
+      artifact and have a `workflow_run` workflow read it as data only. If this job only
+      reads files and never executes them, check out into a separate `path:`, set
+      `persist-credentials: false`, and add a `# nosemgrep` comment that says why.
     metadata:
       category: security
       subcategory: [vuln]

@@ -218,9 +218,29 @@ app.post('/orders/batch', async (req, res) => {
 });
 
 app.post('/login-joi', async (req, res) => {
+  // validate() returns the error instead of throwing, so ignoring it lets
+  // { "email": { "$ne": null } } through.
   const { value } = loginSchema.validate(req.body);
+  // ruleid: express-mongodb-operator-injection
+  res.json(await User.findOne({ email: value.email }));
+});
+
+app.post('/login-joi-checked', async (req, res) => {
+  const { value, error } = loginSchema.validate(req.body);
+  if (error) return res.status(400).end();
   // ok: express-mongodb-operator-injection
   res.json(await User.findOne({ email: value.email }));
+});
+
+app.post('/login-inline-zod', async (req, res) => {
+  const { email } = z.object({ email: z.string().email() }).parse(req.body);
+  // ok: express-mongodb-operator-injection
+  res.json(await User.findOne({ email }));
+});
+
+app.post('/orders/batch-arrow', async (req, res) => {
+  // ok: express-mongodb-operator-injection
+  res.json(await db.collection('orders').find({ _id: { $in: req.body.ids.map((id) => String(id)) } }).toArray());
 });
 
 app.post('/login-nested-guard', async (req, res) => {

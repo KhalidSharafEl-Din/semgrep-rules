@@ -4,13 +4,13 @@ rules:
     severity: ERROR
     message: >-
       The callback passed to `jwt.verify()` never branches on its error argument `$ERR`
-      or on the payload before it continues. Logging the error does not count. When the signature is wrong, the token has
-      expired or the algorithm is not allowed, jsonwebtoken calls the callback with an
-      error and an undefined payload, and this code keeps going. If it calls `next()` or
-      returns data, a request with a forged or expired token gets through. To fix it,
-      check the error first and stop: `if ($ERR) return res.status(401).end();`. The
-      synchronous form, `jwt.verify(token, key, options)` inside `try`/`catch`, avoids
-      the mistake.
+      or on the payload before it continues. Logging the error does not count. When the
+      signature is wrong, the token has expired or the algorithm is not allowed,
+      jsonwebtoken calls the callback with an error and an undefined payload, and this
+      code keeps going. If it calls `next()` or returns data, a request with a forged or
+      expired token gets through. To fix it, check the error first and stop: `if ($ERR)
+      return res.status(401).end();`. The synchronous form, `jwt.verify(token, key,
+      options)` inside `try`/`catch`, avoids the mistake.
     metadata:
       category: security
       subcategory: [vuln]
@@ -32,7 +32,14 @@ rules:
         The community jsonwebtoken rules cover hardcoded secrets, the `none` algorithm
         and `jwt.decode()` without `jwt.verify()`. None of them checks whether the
         `jwt.verify()` callback handles its error.
+    # Layout:
+    # 1. Find jwt.verify() calls with a callback, for each way of importing jsonwebtoken.
+    # 2-4. Drop callbacks that handle the error, only act on success, or check the
+    #      payload. Each group lists the accepted shapes explicitly. Semgrep matches
+    #      syntax, not control flow, so every accepted shape is spelled out.
+    # What is left is a callback that can reach the success path on a failed token.
     patterns:
+      # 1. jwt.verify(token, key, [options,] callback)
       - pattern-either:
           - patterns:
               - pattern-either:
@@ -69,43 +76,122 @@ rules:
                   - pattern: verify($TOKEN, $KEY, $OPTIONS, function ($ERR, ...) { ... })
                   - pattern: verify($TOKEN, $KEY, ($ERR, ...) => $BODY)
                   - pattern: verify($TOKEN, $KEY, $OPTIONS, ($ERR, ...) => $BODY)
-      # The error is handled: a branch on it that ends in return or throw, an if/else on
-      # it, a ternary on it, or passing it on to next(), done() or a callback. A branch
-      # that only logs the error and falls through does not count.
+      # 2. Callbacks that handle the error. The condition must be true for every
+      #    verification error, so `if (err.name === 'TokenExpiredError')` does not count.
+      #    The branch must return, or have an else for the success path. A throw inside
+      #    the callback is not accepted: it crashes the process instead of rejecting.
       - pattern-not: |
           $VERIFY(..., function ($ERR, ...) {
             ...
-            if (<... $ERR ...>) { return ...; }
+            if ($ERR) { return ...; }
             ...
           })
       - pattern-not: |
           $VERIFY(..., function ($ERR, ...) {
             ...
-            if (<... $ERR ...>) { $...BEFORE; return ...; }
+            if ($ERR) { $...BEFORE; return ...; }
             ...
           })
       - pattern-not: |
           $VERIFY(..., function ($ERR, ...) {
             ...
-            if (<... $ERR ...>) { throw $ERROR; }
+            if ($ERR) { ... } else { ... }
             ...
           })
       - pattern-not: |
           $VERIFY(..., function ($ERR, ...) {
             ...
-            if (<... $ERR ...>) { $...BEFORE; throw $ERROR; }
+            if ($ERR || $COND) { return ...; }
             ...
           })
       - pattern-not: |
           $VERIFY(..., function ($ERR, ...) {
             ...
-            if (<... $ERR ...>) { ... } else { ... }
+            if ($ERR || $COND) { $...BEFORE; return ...; }
             ...
           })
       - pattern-not: |
           $VERIFY(..., function ($ERR, ...) {
             ...
-            <... $ERR ? $YES : $NO ...>;
+            if ($ERR || $COND) { ... } else { ... }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            ...
+            if ($COND || $ERR) { return ...; }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            ...
+            if ($COND || $ERR) { $...BEFORE; return ...; }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            ...
+            if ($COND || $ERR) { ... } else { ... }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            ...
+            if ($ERR != null) { return ...; }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            ...
+            if ($ERR != null) { $...BEFORE; return ...; }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            ...
+            if ($ERR != null) { ... } else { ... }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            ...
+            if ($ERR !== null) { return ...; }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            ...
+            if ($ERR !== null) { $...BEFORE; return ...; }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            ...
+            if ($ERR !== null) { ... } else { ... }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            ...
+            if ($ERR !== undefined) { return ...; }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            ...
+            if ($ERR !== undefined) { $...BEFORE; return ...; }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            ...
+            if ($ERR !== undefined) { ... } else { ... }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., function ($ERR, ...) {
+            ...
+            $ERR ? $YES : $NO;
             ...
           })
       - pattern-not: |
@@ -141,37 +227,115 @@ rules:
       - pattern-not: |
           $VERIFY(..., ($ERR, ...) => {
             ...
-            if (<... $ERR ...>) { return ...; }
+            if ($ERR) { return ...; }
             ...
           })
       - pattern-not: |
           $VERIFY(..., ($ERR, ...) => {
             ...
-            if (<... $ERR ...>) { $...BEFORE; return ...; }
+            if ($ERR) { $...BEFORE; return ...; }
             ...
           })
       - pattern-not: |
           $VERIFY(..., ($ERR, ...) => {
             ...
-            if (<... $ERR ...>) { throw $ERROR; }
+            if ($ERR) { ... } else { ... }
             ...
           })
       - pattern-not: |
           $VERIFY(..., ($ERR, ...) => {
             ...
-            if (<... $ERR ...>) { $...BEFORE; throw $ERROR; }
+            if ($ERR || $COND) { return ...; }
             ...
           })
       - pattern-not: |
           $VERIFY(..., ($ERR, ...) => {
             ...
-            if (<... $ERR ...>) { ... } else { ... }
+            if ($ERR || $COND) { $...BEFORE; return ...; }
             ...
           })
       - pattern-not: |
           $VERIFY(..., ($ERR, ...) => {
             ...
-            <... $ERR ? $YES : $NO ...>;
+            if ($ERR || $COND) { ... } else { ... }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            ...
+            if ($COND || $ERR) { return ...; }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            ...
+            if ($COND || $ERR) { $...BEFORE; return ...; }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            ...
+            if ($COND || $ERR) { ... } else { ... }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            ...
+            if ($ERR != null) { return ...; }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            ...
+            if ($ERR != null) { $...BEFORE; return ...; }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            ...
+            if ($ERR != null) { ... } else { ... }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            ...
+            if ($ERR !== null) { return ...; }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            ...
+            if ($ERR !== null) { $...BEFORE; return ...; }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            ...
+            if ($ERR !== null) { ... } else { ... }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            ...
+            if ($ERR !== undefined) { return ...; }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            ...
+            if ($ERR !== undefined) { $...BEFORE; return ...; }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            ...
+            if ($ERR !== undefined) { ... } else { ... }
+            ...
+          })
+      - pattern-not: |
+          $VERIFY(..., ($ERR, ...) => {
+            ...
+            $ERR ? $YES : $NO;
             ...
           })
       - pattern-not: |
@@ -204,10 +368,15 @@ rules:
             <... reject($ERR, ...) ...>;
             ...
           })
-      - pattern-not: "$VERIFY(..., ($ERR, ...) => <... $ERR ? $YES : $NO ...>)"
-      # Code that only runs on success, if (!err) { ... } or if (err === null) { ... }.
-      # Semgrep cannot check that nothing after the branch calls next(), so a
-      # success branch followed by an unconditional next() is not reported.
+      - pattern-not: "$VERIFY(..., ($ERR, ...) => $ERR ? $YES : $NO)"
+      - pattern-not: "$VERIFY(..., ($ERR, ...) => next($ERR, ...))"
+      - pattern-not: "$VERIFY(..., ($ERR, ...) => done($ERR, ...))"
+      - pattern-not: "$VERIFY(..., ($ERR, ...) => cb($ERR, ...))"
+      - pattern-not: "$VERIFY(..., ($ERR, ...) => callback($ERR, ...))"
+      - pattern-not: "$VERIFY(..., ($ERR, ...) => reject($ERR, ...))"
+      # 3. Code that only runs on success: if (!err) { ... } or if (err === null) { ... }.
+      #    Semgrep cannot check that nothing after the branch calls next(), so a success
+      #    branch followed by an unconditional next() is a known false negative.
       - pattern-not: |
           $VERIFY(..., function ($ERR, ...) {
             ...
@@ -292,14 +461,9 @@ rules:
             if ($ERR === undefined) { ... }
             ...
           })
-      - pattern-not: "$VERIFY(..., ($ERR, ...) => <... next($ERR, ...) ...>)"
-      - pattern-not: "$VERIFY(..., ($ERR, ...) => <... done($ERR, ...) ...>)"
-      - pattern-not: "$VERIFY(..., ($ERR, ...) => <... cb($ERR, ...) ...>)"
-      - pattern-not: "$VERIFY(..., ($ERR, ...) => <... callback($ERR, ...) ...>)"
-      - pattern-not: "$VERIFY(..., ($ERR, ...) => <... reject($ERR, ...) ...>)"
-      # The payload is checked: on error it is undefined, so a guard such as
-      # if (!payload) return ..., or a success branch such as
-      # if (payload && payload.role === 'admin') { return next(); }, rejects the request too.
+      # 4. Callbacks that check the payload. On error it is undefined, so a guard such as
+      #    if (!payload) return ..., or a success branch such as
+      #    if (payload && payload.role === 'admin') { return next(); }, rejects the request too.
       - pattern-not: |
           $VERIFY(..., function ($ERR, $PAYLOAD, ...) {
             ...
@@ -310,18 +474,6 @@ rules:
           $VERIFY(..., function ($ERR, $PAYLOAD, ...) {
             ...
             if (!$PAYLOAD) { $...BEFORE; return ...; }
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., function ($ERR, $PAYLOAD, ...) {
-            ...
-            if (!$PAYLOAD) { throw $ERROR; }
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., function ($ERR, $PAYLOAD, ...) {
-            ...
-            if (!$PAYLOAD) { $...BEFORE; throw $ERROR; }
             ...
           })
       - pattern-not: |
@@ -345,18 +497,6 @@ rules:
       - pattern-not: |
           $VERIFY(..., function ($ERR, $PAYLOAD, ...) {
             ...
-            if (!$PAYLOAD || $COND) { throw $ERROR; }
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., function ($ERR, $PAYLOAD, ...) {
-            ...
-            if (!$PAYLOAD || $COND) { $...BEFORE; throw $ERROR; }
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., function ($ERR, $PAYLOAD, ...) {
-            ...
             if (!$PAYLOAD || $COND) { ... } else { ... }
             ...
           })
@@ -375,18 +515,6 @@ rules:
       - pattern-not: |
           $VERIFY(..., function ($ERR, $PAYLOAD, ...) {
             ...
-            if ($PAYLOAD) { throw $ERROR; }
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., function ($ERR, $PAYLOAD, ...) {
-            ...
-            if ($PAYLOAD) { $...BEFORE; throw $ERROR; }
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., function ($ERR, $PAYLOAD, ...) {
-            ...
             if ($PAYLOAD) { ... } else { ... }
             ...
           })
@@ -400,18 +528,6 @@ rules:
           $VERIFY(..., function ($ERR, $PAYLOAD, ...) {
             ...
             if ($PAYLOAD && $COND) { $...BEFORE; return ...; }
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., function ($ERR, $PAYLOAD, ...) {
-            ...
-            if ($PAYLOAD && $COND) { throw $ERROR; }
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., function ($ERR, $PAYLOAD, ...) {
-            ...
-            if ($PAYLOAD && $COND) { $...BEFORE; throw $ERROR; }
             ...
           })
       - pattern-not: |
@@ -435,18 +551,6 @@ rules:
       - pattern-not: |
           $VERIFY(..., ($ERR, $PAYLOAD, ...) => {
             ...
-            if (!$PAYLOAD) { throw $ERROR; }
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., ($ERR, $PAYLOAD, ...) => {
-            ...
-            if (!$PAYLOAD) { $...BEFORE; throw $ERROR; }
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., ($ERR, $PAYLOAD, ...) => {
-            ...
             if (!$PAYLOAD) { ... } else { ... }
             ...
           })
@@ -460,18 +564,6 @@ rules:
           $VERIFY(..., ($ERR, $PAYLOAD, ...) => {
             ...
             if (!$PAYLOAD || $COND) { $...BEFORE; return ...; }
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., ($ERR, $PAYLOAD, ...) => {
-            ...
-            if (!$PAYLOAD || $COND) { throw $ERROR; }
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., ($ERR, $PAYLOAD, ...) => {
-            ...
-            if (!$PAYLOAD || $COND) { $...BEFORE; throw $ERROR; }
             ...
           })
       - pattern-not: |
@@ -495,18 +587,6 @@ rules:
       - pattern-not: |
           $VERIFY(..., ($ERR, $PAYLOAD, ...) => {
             ...
-            if ($PAYLOAD) { throw $ERROR; }
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., ($ERR, $PAYLOAD, ...) => {
-            ...
-            if ($PAYLOAD) { $...BEFORE; throw $ERROR; }
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., ($ERR, $PAYLOAD, ...) => {
-            ...
             if ($PAYLOAD) { ... } else { ... }
             ...
           })
@@ -525,19 +605,7 @@ rules:
       - pattern-not: |
           $VERIFY(..., ($ERR, $PAYLOAD, ...) => {
             ...
-            if ($PAYLOAD && $COND) { throw $ERROR; }
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., ($ERR, $PAYLOAD, ...) => {
-            ...
-            if ($PAYLOAD && $COND) { $...BEFORE; throw $ERROR; }
-            ...
-          })
-      - pattern-not: |
-          $VERIFY(..., ($ERR, $PAYLOAD, ...) => {
-            ...
             if ($PAYLOAD && $COND) { ... } else { ... }
             ...
           })
-      - pattern-not: "$VERIFY(..., ($ERR, $PAYLOAD, ...) => <... $PAYLOAD ? $YES : $NO ...>)"
+      - pattern-not: "$VERIFY(..., ($ERR, $PAYLOAD, ...) => $PAYLOAD ? $YES : $NO)"

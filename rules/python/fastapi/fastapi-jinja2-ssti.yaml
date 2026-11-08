@@ -8,12 +8,12 @@ rules:
       taint_assume_safe_indexes: true
     message: >-
       A FastAPI request parameter becomes the source text of a Jinja2 template. Jinja2
-      evaluates expressions inside `{{ }}`, so a value like
-      `{{ cycler.__init__.__globals__.os.popen('id').read() }}` runs commands on the
-      server. To fix it, keep template source in files or string constants, and pass
-      user input as a variable when you render: `TEMPLATE.render(name=name)`. If users
-      must write their own templates, use `jinja2.sandbox.SandboxedEnvironment` and
-      treat the sandbox as one layer of defence, not the whole fix.
+      evaluates expressions inside `{{ }}`, so a value like `{{
+      cycler.__init__.__globals__.os.popen('id').read() }}` runs commands on the server.
+      To fix it, keep template source in files or string constants, and pass user input
+      as a variable when you render: `TEMPLATE.render(name=name)`. If users must write
+      their own templates, use `jinja2.sandbox.SandboxedEnvironment` and treat the
+      sandbox as one layer of defence, not the whole fix.
     metadata:
       category: security
       subcategory: [vuln]
@@ -83,8 +83,12 @@ rules:
           - focus-metavariable: $PARAM
     pattern-sanitizers:
       # A lookup in an UPPER_CASE mapping of templates, TEMPLATES.get(kind, DEFAULT).
+      # The default must not be the tainted value itself.
       - patterns:
-          - pattern: $TEMPLATES.get(...)
+          - pattern-either:
+              - pattern: $TEMPLATES.get($KEY)
+              - pattern: $TEMPLATES.get($KEY, "...")
+              - pattern: $TEMPLATES.get($KEY, $TEMPLATES[$DEFAULT])
           - metavariable-regex:
               metavariable: $TEMPLATES
               regex: ^[A-Z][A-Z0-9_]*$

@@ -163,3 +163,13 @@ def audit(url: str):
 def region_health(region: str):
     # ok: fastapi-ssrf
     return requests.get(REGION_HOSTS[region], timeout=5).status_code
+
+
+@app.get("/region/{region}/users/{user_id}")
+async def region_user(region: str, user_id: int):
+    async with httpx.AsyncClient() as client:
+        # ok: fastapi-ssrf
+        a = await client.get(f"{REGION_HOSTS[region]}/users/{user_id}")
+        # ok: fastapi-ssrf
+        b = await client.get(settings.users_api + f"/users/{user_id}")
+    return [a.status_code, b.status_code]

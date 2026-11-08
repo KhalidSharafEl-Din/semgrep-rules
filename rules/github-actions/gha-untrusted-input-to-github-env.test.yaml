@@ -89,6 +89,31 @@ jobs:
           [[ "$TITLE" =~ .* ]] || exit 1
           echo "TITLE=$TITLE" >> "$GITHUB_ENV"
 
+      - name: Grouped write
+        env:
+          TITLE: ${{ github.event.issue.title }}
+        # ruleid: gha-untrusted-input-to-github-env
+        run: |
+          {
+            echo "TITLE=$TITLE"
+            echo "SOURCE=issue"
+          } >> "$GITHUB_ENV"
+
+      - name: tee append
+        env:
+          TITLE: ${{ github.event.issue.title }}
+        # ruleid: gha-untrusted-input-to-github-env
+        run: echo "TITLE=$TITLE" | tee -a "$GITHUB_ENV"
+
+      - name: Heredoc write
+        env:
+          BODY: ${{ github.event.issue.body }}
+        # ruleid: gha-untrusted-input-to-github-env
+        run: |
+          cat >> "$GITHUB_ENV" <<EOF
+          NOTES=$BODY
+          EOF
+
   job-env:
     runs-on: ubuntu-latest
     env:

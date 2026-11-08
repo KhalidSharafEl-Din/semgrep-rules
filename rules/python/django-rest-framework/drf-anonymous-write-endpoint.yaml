@@ -3,15 +3,15 @@ rules:
     languages: [python]
     severity: ERROR
     message: >-
-      `$VIEW` can update or delete existing objects, and its `permission_classes`
-      lets anyone call it without logging in. An empty list or `AllowAny` here
-      overrides `DEFAULT_PERMISSION_CLASSES` in settings, so a global
-      `IsAuthenticated` does not protect this view. Anyone who can guess an ID can
-      change or delete that record. To fix it, require authentication and an object
-      check, for example `permission_classes = [IsAuthenticated, IsOwner]` with
-      `has_object_permission` comparing `obj.owner` to `request.user`, and filter
-      `get_queryset()` by the current user. If the view really must be public, split
-      the read actions into a `ReadOnlyModelViewSet`.
+      `$VIEW` can update or delete existing objects, and its `permission_classes` lets
+      anyone call it without logging in. An empty list or `AllowAny` here overrides
+      `DEFAULT_PERMISSION_CLASSES` in settings, so a global `IsAuthenticated` does not
+      protect this view. Anyone who can guess an ID can change or delete that record. To
+      fix it, require authentication and an object check, for example
+      `permission_classes = [IsAuthenticated, IsOwner]` with `has_object_permission`
+      comparing `obj.owner` to `request.user`, and filter `get_queryset()` by the
+      current user. If the view really must be public, split the read actions into a
+      `ReadOnlyModelViewSet`.
     metadata:
       category: security
       subcategory: [vuln]

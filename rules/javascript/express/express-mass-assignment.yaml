@@ -5,11 +5,13 @@ rules:
     mode: taint
     message: >-
       The whole request body reaches a database write. A client can add fields the form
-      never shows, such as `role`, `isAdmin`, `ownerId`, `balance` or `emailVerified`, and
-      the ORM saves them. To fix it, copy only the fields this endpoint may change, for
-      example `const { name, email } = req.body; await User.create({ name, email });`,
-      or parse the body with a schema that drops unknown keys, such as zod's
-      `schema.parse(req.body)` or express-validator's `matchedData(req)`. The rule only recognises a schema defined in the same file, so if yours is imported, add a `nosemgrep` comment that names it.
+      never shows, such as `role`, `isAdmin`, `ownerId`, `balance` or `emailVerified`,
+      and the ORM saves them. To fix it, copy only the fields this endpoint may change,
+      for example `const { name, email } = req.body; await User.create({ name, email
+      });`, or parse the body with a schema that drops unknown keys, such as zod's
+      `schema.parse(req.body)` or express-validator's `matchedData(req)`. The rule only
+      recognises a schema defined in the same file, so if yours is imported, add a
+      `nosemgrep` comment that names it.
     metadata:
       category: security
       subcategory: [vuln]
@@ -43,12 +45,12 @@ rules:
       - pattern: $REQ.body[$KEY]
       - pattern: $LODASH.pick(...)
       - pattern: pick(...)
-      # Schema parsers count only when the schema is defined in this file as a plain
-      # object schema, which drops or rejects unknown keys: z.object(...),
-      # z.object(...).strict(), z.strictObject(...) or Joi.object(...). Chains such
-      # as .passthrough(), .loose(), .catchall(), .unknown() or .options() change the
-      # outer call and do not match. A schema imported from another file is not
-      # recognised, so suppress that finding with a nosemgrep comment.
+      # Schema parsers count only for a plain object schema, which drops or rejects
+      # unknown keys and checks field types: z.object(...), z.object(...).strict(),
+      # z.strictObject(...), or Joi.object(...) with validateAsync(), which throws on
+      # invalid input. Chains such as .passthrough(), .loose(), .catchall(),
+      # .unknown() or .options() change the outer call and do not match. A schema
+      # imported from another file is not recognised.
       - patterns:
           - pattern-either:
               - pattern: $SCHEMA.parse(...)
@@ -70,14 +72,26 @@ rules:
                   ...
       - patterns:
           - pattern-either:
-              - pattern: $SCHEMA.validate(...)
-              - pattern: $SCHEMA.validateAsync(...)
-          - pattern-inside: |
-              $SCHEMA = Joi.object(...)
-              ...
-          - pattern-not: "$SCHEMA.$VALIDATE($INPUT, {..., allowUnknown: true, ...})"
-      # Yup and Joi drop unknown keys when told to.
-      - pattern: "$SCHEMA.validate($INPUT, {..., stripUnknown: true, ...})"
+              - pattern: $Z.object(...).$PARSE(...)
+              - pattern: $Z.object(...).strict().$PARSE(...)
+              - pattern: $Z.strictObject(...).$PARSE(...)
+          - metavariable-regex:
+              metavariable: $PARSE
+              regex: ^(parse|safeParse|parseAsync|safeParseAsync)$
+      - patterns:
+          - pattern: $SCHEMA.validateAsync(...)
+          - pattern-either:
+              - pattern-inside: |
+                  $SCHEMA = Joi.object(...)
+                  ...
+              - pattern-inside: |
+                  $SCHEMA = Joi.object(...).required()
+                  ...
+          - pattern-not: "$SCHEMA.validateAsync($INPUT, {..., allowUnknown: true, ...})"
+      # Yup's validate() is async and rejects invalid input; validateSync() throws.
+      # Joi's validate() returns the error instead of throwing, so it only counts
+      # through the error check in the sinks below.
+      - pattern: "await $SCHEMA.validate($INPUT, {..., stripUnknown: true, ...})"
       - pattern: "$SCHEMA.validateSync($INPUT, {..., stripUnknown: true, ...})"
       - pattern: matchedData(...)
     pattern-sinks:
@@ -121,6 +135,7 @@ rules:
               - patterns:
                   - pattern-either:
                       - pattern: $DOC.set($DATA)
+                      - pattern: $DOC.update($DATA)
                       - pattern: Object.assign($DOC, $DATA)
                   - pattern-inside: |
                       $DOC = await $MODEL.$FIND(...);
@@ -137,6 +152,18 @@ rules:
               metavariable: $DATA
               language: generic
               pattern-regex: \A[^{]
+          # Joi's validate() returns { value, error }. Code that checks the error and
+          # stops before the write is a fix.
+          - pattern-not-inside: |
+              $RESULT = $SCHEMA.validate(...);
+              ...
+              if (<... error ...>) { return ...; }
+              ...
+          - pattern-not-inside: |
+              $RESULT = $SCHEMA.validate(...);
+              ...
+              if (<... error ...>) { $...BEFORE; return ...; }
+              ...
           - focus-metavariable: $DATA
       - patterns:
           - pattern-either:
@@ -146,10 +173,34 @@ rules:
           - metavariable-regex:
               metavariable: $MODEL
               regex: ^[A-Z][A-Za-z0-9_]*$
+          # Joi's validate() returns { value, error }. Code that checks the error and
+          # stops before the write is a fix.
+          - pattern-not-inside: |
+              $RESULT = $SCHEMA.validate(...);
+              ...
+              if (<... error ...>) { return ...; }
+              ...
+          - pattern-not-inside: |
+              $RESULT = $SCHEMA.validate(...);
+              ...
+              if (<... error ...>) { $...BEFORE; return ...; }
+              ...
           - focus-metavariable: $DATA
       - patterns:
           - pattern: "$PRISMA.$TABLE.$OP({..., data: {..., ...$DATA, ...}, ...})"
           - metavariable-regex:
               metavariable: $OP
               regex: ^(create|createMany|update|updateMany|upsert)$
+          # Joi's validate() returns { value, error }. Code that checks the error and
+          # stops before the write is a fix.
+          - pattern-not-inside: |
+              $RESULT = $SCHEMA.validate(...);
+              ...
+              if (<... error ...>) { return ...; }
+              ...
+          - pattern-not-inside: |
+              $RESULT = $SCHEMA.validate(...);
+              ...
+              if (<... error ...>) { $...BEFORE; return ...; }
+              ...
           - focus-metavariable: $DATA

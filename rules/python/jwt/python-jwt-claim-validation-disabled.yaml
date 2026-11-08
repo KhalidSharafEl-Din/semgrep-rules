@@ -7,10 +7,9 @@ rules:
       `verify_exp` off, a stolen or logged token never expires. With `verify_aud` or
       `verify_iss` off, a token issued for another service or tenant that shares the
       signing key is accepted here. To fix it, remove `"$OPTION": False` and pass the
-      expected values instead, for example
-      `jwt.decode(token, key, algorithms=["RS256"], audience="orders-api", issuer="https://auth.example.com/")`.
-      If clock drift is the problem, set a small `leeway` (a few seconds) rather than
-      turning the check off.
+      expected values instead, for example `jwt.decode(token, key, algorithms=["RS256"],
+      audience="orders-api", issuer="https://auth.example.com/")`. If clock drift is the
+      problem, set a small `leeway` (a few seconds) rather than turning the check off.
     metadata:
       category: security
       subcategory: [vuln]

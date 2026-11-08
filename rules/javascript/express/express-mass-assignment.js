@@ -181,4 +181,40 @@ router.post('/profile-identity', async (req, res) => {
   res.sendStatus(201);
 });
 
+router.post('/signup-joi-ignored', async (req, res) => {
+  const { value } = signupSchema.validate(req.body);
+  // ruleid: express-mass-assignment
+  await User.create(value);
+  res.sendStatus(201);
+});
+
+router.post('/signup-inline-zod', async (req, res) => {
+  const data = z.object({ name: z.string(), email: z.string().email() }).strict().parse(req.body);
+  // ok: express-mass-assignment
+  await User.create(data);
+  res.sendStatus(201);
+});
+
+router.put('/invoices/:id/instance', async (req, res) => {
+  const invoice = await Invoice.findByPk(req.params.id);
+  // ruleid: express-mass-assignment
+  await invoice.update(req.body);
+  res.sendStatus(204);
+});
+
+router.post('/users/nested', async (req, res) => {
+  // A nested object is still the whole client payload. The field sanitizer hides it.
+  // todoruleid: express-mass-assignment
+  await User.create(req.body.user);
+  res.sendStatus(201);
+});
+
+router.post('/users/rest', async (req, res) => {
+  const { password, ...rest } = req.body;
+  // Semgrep drops taint on a ...rest binding, so this is missed.
+  // todoruleid: express-mass-assignment
+  await User.create(rest);
+  res.sendStatus(201);
+});
+
 module.exports = router;

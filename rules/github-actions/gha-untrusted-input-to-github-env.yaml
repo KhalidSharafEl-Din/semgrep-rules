@@ -6,16 +6,16 @@ rules:
       This step copies attacker-controlled event data (`$VALUE`) into the environment
       variable `$ENVVAR` and writes a variable to `$GITHUB_ENV` or `$GITHUB_PATH`. Check
       that the written value is `$ENVVAR`, because this rule cannot follow the value
-      through the script. Moving
-      `${{ }}` into `env:` stops shell injection in this step, but it does not stop this.
-      A newline in the value lets an attacker define extra variables for every later step
-      in the job, such as `BASH_ENV`, `NODE_OPTIONS` or `LD_PRELOAD`, which gives code
-      execution with the job's token and secrets. To fix it, do not write event data to
-      `$GITHUB_ENV` or `$GITHUB_PATH`. Pass the value to later steps as an `env:` entry or
-      a step output instead. If you must use the env file, validate the value against a
-      strict pattern in the same step, for example
-      `[[ "$$ENVVAR" =~ ^[A-Za-z0-9._-]+$ ]] || exit 1`, then add a `# nosemgrep`
-      comment that names the check. This rule cannot tell whether a check is strict.
+      through the script. Moving `${{ }}` into `env:` stops shell injection in this
+      step, but it does not stop this. A newline in the value lets an attacker define
+      extra variables for every later step in the job, such as `BASH_ENV`,
+      `NODE_OPTIONS` or `LD_PRELOAD`, which gives code execution with the job's token
+      and secrets. To fix it, do not write event data to `$GITHUB_ENV` or
+      `$GITHUB_PATH`. Pass the value to later steps as an `env:` entry or a step output
+      instead. If you must use the env file, validate the value against a strict pattern
+      in the same step, for example `[[ "$$ENVVAR" =~ ^[A-Za-z0-9._-]+$ ]] || exit 1`,
+      then add a `# nosemgrep` comment that names the check. This rule cannot tell
+      whether a check is strict.
     metadata:
       category: security
       subcategory: [vuln]
@@ -83,11 +83,12 @@ rules:
             - pattern: ${{ ... github.event.workflow_run.head_commit.message ... }}
             - pattern: ${{ ... github.event.workflow_run.display_title ... }}
             - pattern: ${{ ... github.head_ref ... }}
-      # A line that expands a variable and appends it to the env or path file.
+      # A write to the env or path file that can carry a variable: a line that expands
+      # a variable and appends it, a grouped { ...; } >> write, tee -a, or a heredoc.
       - metavariable-pattern:
           metavariable: $SCRIPT
           language: generic
-          pattern-regex: \$\{?[A-Za-z_][A-Za-z0-9_]*\}?[^\n]*>>\s*"?\$\{?GITHUB_(ENV|PATH)
+          pattern-regex: (\$\{?[A-Za-z_][A-Za-z0-9_]*\}?[^\n]*>>\s*"?\$\{?GITHUB_(ENV|PATH))|(\}\s*>>\s*"?\$\{?GITHUB_(ENV|PATH))|(tee\s+(-a|--append)\s+"?\$\{?GITHUB_(ENV|PATH))|(>>\s*"?\$\{?GITHUB_(ENV|PATH)\}?"?\s*<<)
       # Semgrep cannot compare a YAML key with a token inside a generic block, so the
       # link between the env key and the write is a substring check on the script.
       # The test file marks the known false positives with todook.
