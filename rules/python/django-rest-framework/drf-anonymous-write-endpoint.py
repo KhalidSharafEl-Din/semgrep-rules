@@ -82,3 +82,11 @@ def invoice_count(request):
 def rename_profile(request, pk):
     Profile.objects.filter(pk=pk).update(name=request.data["name"])
     return Response(status=204)
+
+
+class InvoiceBrowser(viewsets.ModelViewSet):
+    queryset = Invoice.objects.filter(public=True)
+    serializer_class = InvoiceSerializer
+    http_method_names = ["get", "head", "options"]
+    # ok: drf-anonymous-write-endpoint
+    permission_classes = [AllowAny]

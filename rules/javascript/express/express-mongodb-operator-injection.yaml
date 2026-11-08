@@ -47,6 +47,12 @@ rules:
       - pattern: parseFloat(...)
       - pattern: Boolean(...)
       - pattern: $X.toString()
+      # String methods throw on an object before the query runs.
+      - patterns:
+          - pattern: $X.$STRING_METHOD(...)
+          - metavariable-regex:
+              metavariable: $STRING_METHOD
+              regex: ^(toLowerCase|toUpperCase|trim|trimStart|trimEnd|normalize|toLocaleLowerCase|toLocaleUpperCase)$
       - pattern: "`...`"
       - pattern: $SCHEMA.parse(...)
       - pattern: $SCHEMA.safeParse(...)
@@ -69,7 +75,7 @@ rules:
                       pattern-regex: \A[^{]
           - metavariable-regex:
               metavariable: $METHOD
-              regex: ^(find|findOne|update|remove|findOneAndUpdate|findOneAndDelete|findOneAndReplace|findOneAndRemove|updateOne|updateMany|deleteOne|deleteMany|replaceOne|countDocuments|exists|where)$
+              regex: ^(find|findOne|update|remove|findOneAndUpdate|findOneAndDelete|findOneAndReplace|findOneAndRemove|updateOne|updateMany|deleteOne|deleteMany|replaceOne|countDocuments|exists)$
           # Sequelize also has findOne/updateOne-style methods, but its operators are
           # Symbols (Op.ne), so a JSON object cannot inject one. Skip its `where:` filters.
           - pattern-not-inside: "$COLLECTION.$METHOD({..., where: $WHERE, ...}, ...)"

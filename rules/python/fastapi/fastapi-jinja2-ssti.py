@@ -1,5 +1,5 @@
 import jinja2
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, Template
@@ -12,6 +12,7 @@ templates = Jinja2Templates(directory="templates")
 sandbox = SandboxedEnvironment()
 
 GREETING = Template("Hello {{ name }}!")
+EMAILS = {"welcome": "Welcome {{ name }}", "reset": "Reset your password, {{ name }}"}
 
 
 class EmailPreview(BaseModel):
@@ -60,3 +61,15 @@ def greet_env(name: str):
 def user_template(source: str):
     # ok: fastapi-jinja2-ssti
     return sandbox.from_string(source).render()
+
+
+@app.get("/motd", response_class=HTMLResponse)
+def motd(message: str = Query(default="Hello")):
+    # ruleid: fastapi-jinja2-ssti
+    return env.from_string(message).render()
+
+
+@app.get("/email/{kind}", response_class=HTMLResponse)
+def email(kind: str, name: str):
+    # ok: fastapi-jinja2-ssti
+    return env.from_string(EMAILS[kind]).render(name=name)

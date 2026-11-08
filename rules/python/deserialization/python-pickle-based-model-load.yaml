@@ -19,7 +19,7 @@ rules:
         - "CWE-502: Deserialization of Untrusted Data"
       owasp:
         - A08:2021 - Software and Data Integrity Failures
-        - A08:2025 - Software and Data Integrity Failures
+        - A08:2025 - Software or Data Integrity Failures
       confidence: MEDIUM
       likelihood: LOW
       impact: HIGH

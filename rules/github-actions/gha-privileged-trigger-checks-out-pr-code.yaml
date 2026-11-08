@@ -3,9 +3,9 @@ rules:
     languages: [yaml]
     severity: ERROR
     message: >-
-      This workflow runs on `$TRIGGER`, which gets a write-capable `GITHUB_TOKEN` and
-      repository secrets even when a fork opened the pull request, and this step fetches
-      the pull request's own code. Any build, install, test or lint command that runs
+      This workflow runs on `pull_request_target`, `issue_comment` or `workflow_run`.
+      Those triggers get a write-capable `GITHUB_TOKEN` and repository secrets even when
+      a fork opened the pull request, and this step fetches the pull request's own code. Any build, install, test or lint command that runs
       after this line executes the attacker's code with those secrets. To fix it, move
       work that runs pull request code to a `pull_request` workflow, which gets no
       secrets for forks. If a privileged step needs the result, let the `pull_request`
@@ -20,7 +20,7 @@ rules:
         - "CWE-829: Inclusion of Functionality from Untrusted Control Sphere"
       owasp:
         - A08:2021 - Software and Data Integrity Failures
-        - A08:2025 - Software and Data Integrity Failures
+        - A08:2025 - Software or Data Integrity Failures
       confidence: MEDIUM
       likelihood: MEDIUM
       impact: HIGH

@@ -27,7 +27,6 @@ rules:
       references:
         - https://pyjwt.readthedocs.io/en/stable/api.html#jwt.decode
         - https://python-jose.readthedocs.io/en/latest/jwt/api.html
-        - https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html
         - https://datatracker.ietf.org/doc/html/rfc8725#section-3.10
       registry-comparison: >-
         The community rule unverified-jwt-decode flags `"verify_signature": False`. It

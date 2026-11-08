@@ -5,6 +5,10 @@ const { matchedData } = require('express-validator');
 const { PrismaClient } = require('@prisma/client');
 const User = require('./models/user');
 const Order = require('./models/order');
+const Joi = require('joi');
+const { Invoice } = require('./sequelize-models');
+
+const noteSchema = Joi.object({ text: Joi.string().max(200) });
 
 const prisma = new PrismaClient();
 const router = express.Router();
@@ -88,6 +92,25 @@ router.post('/webhooks/stripe', async (req, res) => {
   // ok: express-mass-assignment
   await stripe.customers.create(req.body);
   res.sendStatus(200);
+});
+
+router.post('/tenants/:id/members', async (req, res) => {
+  // ruleid: express-mass-assignment
+  const member = await prisma.member.create({ data: { ...req.body, tenantId: req.params.id } });
+  res.json(member);
+});
+
+router.put('/invoices/:id', async (req, res) => {
+  // ok: express-mass-assignment
+  await Invoice.update(req.body, { where: { id: req.params.id, ownerId: req.user.id }, fields: ['memo', 'dueDate'] });
+  res.sendStatus(204);
+});
+
+router.post('/notes', async (req, res) => {
+  const note = await noteSchema.validateAsync(req.body);
+  // ok: express-mass-assignment
+  await prisma.note.create({ data: note });
+  res.sendStatus(201);
 });
 
 module.exports = router;

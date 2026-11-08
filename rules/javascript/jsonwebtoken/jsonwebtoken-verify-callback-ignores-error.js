@@ -13,13 +13,10 @@ function requireUser(req, res, next) {
   });
 }
 
-function requireAdmin(req, res, next) {
+function sessionInfo(req, res) {
   // ruleid: jsonwebtoken-verify-callback-ignores-error
   jwt.verify(req.cookies.session, PUBLIC_KEY, function (error, claims) {
-    if (claims && claims.role === 'admin') {
-      return next();
-    }
-    res.status(403).end();
+    res.json({ loggedIn: true, claims });
   });
 }
 
@@ -43,12 +40,32 @@ function forwardError(req, res, next) {
   jwt.verify(req.cookies.session, PUBLIC_KEY, (err, claims) => (err ? next(err) : next()));
 }
 
+function payloadGuard(req, res, next) {
+  // ok: jsonwebtoken-verify-callback-ignores-error
+  jwt.verify(req.cookies.session, PUBLIC_KEY, (_err, decoded) => {
+    if (!decoded) return res.status(401).end();
+    req.user = decoded;
+    next();
+  });
+}
+
+function requireAdmin(req, res, next) {
+  // ok: jsonwebtoken-verify-callback-ignores-error
+  jwt.verify(req.cookies.session, PUBLIC_KEY, function (error, claims) {
+    if (claims && claims.role === 'admin') {
+      return next();
+    }
+    res.status(403).end();
+  });
+}
+
 function synchronous(req) {
   // ok: jsonwebtoken-verify-callback-ignores-error
   return jwt.verify(req.cookies.session, PUBLIC_KEY, { algorithms: ['RS256'] });
 }
 
 app.get('/me', requireUser, (req, res) => res.json(req.user));
+app.get('/session', sessionInfo);
 app.get('/admin', requireAdmin, (req, res) => res.send('ok'));
 
-module.exports = { requireUserChecked, forwardError, synchronous, checkToken };
+module.exports = { requireUserChecked, forwardError, payloadGuard, synchronous, checkToken };

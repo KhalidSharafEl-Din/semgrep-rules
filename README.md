@@ -1,5 +1,7 @@
 # semgrep-rules
 
+[![ci](https://github.com/KhalidSharafEl-Din/semgrep-rules/actions/workflows/ci.yml/badge.svg)](https://github.com/KhalidSharafEl-Din/semgrep-rules/actions/workflows/ci.yml)
+
 Ten custom Semgrep rules for bugs the community registry misses in GitHub Actions workflows and in Node.js and Python web backends. Each rule has a test file with vulnerable and safe samples, and CI runs every test on each push and pull request.
 
 I picked these from bug classes I run into when triaging pipeline findings and testing web and mobile backends. Before writing a rule, I checked the [semgrep/semgrep-rules](https://github.com/semgrep/semgrep-rules) repository at commit `16b9e6d` (October 2026) and kept only rules that catch something it doesn't. The `registry-comparison` field in each rule's metadata names the closest community rule and what it misses.
@@ -15,7 +17,7 @@ I picked these from bug classes I run into when triaging pipeline findings and t
 | [`python-jwt-claim-validation-disabled`](rules/python/jwt/python-jwt-claim-validation-disabled.yaml) | Python | CWE-613, CWE-1390 | PyJWT and python-jose calls that turn off `verify_exp`, `verify_aud`, `verify_iss` or another claim check. |
 | [`python-pickle-based-model-load`](rules/python/deserialization/python-pickle-based-model-load.yaml) | Python | CWE-502 | `torch.load` without `weights_only=True`, `numpy.load(allow_pickle=True)`, `joblib.load` and `pandas.read_pickle`. |
 | [`drf-anonymous-write-endpoint`](rules/python/django-rest-framework/drf-anonymous-write-endpoint.yaml) | Python | CWE-862, CWE-639 | Django REST Framework views that can update or delete objects but set `AllowAny` or empty permission classes. |
-| [`jsonwebtoken-verify-callback-ignores-error`](rules/javascript/jsonwebtoken/jsonwebtoken-verify-callback-ignores-error.yaml) | JavaScript, TypeScript | CWE-347, CWE-754 | `jwt.verify()` callbacks that never read their error argument, so an invalid token is treated as valid. |
+| [`jsonwebtoken-verify-callback-ignores-error`](rules/javascript/jsonwebtoken/jsonwebtoken-verify-callback-ignores-error.yaml) | JavaScript, TypeScript | CWE-347, CWE-754 | `jwt.verify()` callbacks that never read their error argument or check the payload, so a forged or expired token can get through. |
 | [`express-mass-assignment`](rules/javascript/express/express-mass-assignment.yaml) | JavaScript, TypeScript | CWE-915 | The whole `req.body` passed to a Mongoose, Sequelize or Prisma write. |
 | [`express-mongodb-operator-injection`](rules/javascript/express/express-mongodb-operator-injection.yaml) | JavaScript, TypeScript | CWE-943 | `req.body` or `req.query` values in a MongoDB filter without a cast, which lets a client send `{"$ne": null}`. |
 
@@ -23,13 +25,15 @@ Every rule sets `cwe`, `owasp`, `confidence`, `likelihood`, `impact` and `refere
 
 Each message says what's wrong, why it matters and how to fix it, with a code example where one fits.
 
+## Smoke test on OWASP Juice Shop
+
+I ran the pack against [OWASP Juice Shop](https://github.com/juice-shop/juice-shop) at commit `717f5ef`. In `routes/`, the MongoDB rule reported five lines where a request body value reaches a MarsDB filter without a cast. One of them is the line Juice Shop labels `noSqlReviewsChallenge`. Juice Shop also ships three candidate fixes for that bug in `data/static/codefixes/`. The rule flags the two marked as wrong and stays quiet on the one marked correct, which rejects non-string IDs with a `typeof` check.
+
+That result took two changes to the rule after the first run. It now skips Sequelize queries, which this attack doesn't affect, and it accepts `typeof` guards. Both cases have tests. The other nine rules reported nothing in Juice Shop.
+
 ## What the tests prove
 
 `semgrep --test` checks that every line marked `ruleid:` produces a finding and every line marked `ok:` doesn't. So the tests prove each rule behaves as described on the samples in this repository. I haven't measured false-positive rates on real codebases.
-
-As a smoke test, I ran the pack against [OWASP Juice Shop](https://github.com/juice-shop/juice-shop) at commit `717f5ef`. In `routes/`, the MongoDB rule reported five lines where a request body value reaches a MarsDB filter without a cast. One of them is the line Juice Shop labels `noSqlReviewsChallenge`. Juice Shop also ships three candidate fixes for that bug in `data/static/codefixes/`. The rule flags the two marked as wrong and stays quiet on the one marked correct, which rejects non-string IDs with a `typeof` check.
-
-That result took two changes to the rule after the first run. It now skips Sequelize queries, which this attack doesn't affect, and it accepts `typeof` guards. Both cases have tests. The other nine rules reported nothing in Juice Shop.
 
 ## Run the rules locally
 

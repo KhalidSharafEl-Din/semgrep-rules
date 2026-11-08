@@ -11,7 +11,9 @@ rules:
       execution with the job's token and secrets. To fix it, do not write event data to
       `$GITHUB_ENV` or `$GITHUB_PATH`. Pass the value to later steps as an `env:` entry or
       a step output instead. If you must use the env file, validate the value against a
-      strict pattern first, for example `[[ "$$ENVVAR" =~ ^[A-Za-z0-9._-]+$ ]] || exit 1`.
+      strict pattern first, for example `[[ "$$ENVVAR" =~ ^[A-Za-z0-9._-]+$ ]] || exit 1`,
+      and add a `# nosemgrep` comment that names the check. This rule cannot see the
+      validation.
     metadata:
       category: security
       subcategory: [vuln]

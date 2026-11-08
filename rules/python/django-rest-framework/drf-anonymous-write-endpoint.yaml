@@ -43,6 +43,14 @@ rules:
               metavariable: $BASE
               language: generic
               pattern-regex: (^|\.)(ModelViewSet|UpdateAPIView|DestroyAPIView|RetrieveUpdateAPIView|RetrieveDestroyAPIView|RetrieveUpdateDestroyAPIView|UpdateModelMixin|DestroyModelMixin)$
+          # Views that set http_method_names usually narrow themselves to read methods.
+          # The rule skips them without reading the list, which can miss a view that
+          # lists "delete" explicitly.
+          - pattern-not-inside: |
+              class $VIEW(...):
+                ...
+                http_method_names = $METHODS
+                ...
           # A custom get_permissions() decides access at runtime; this rule cannot see it.
           - pattern-not-inside: |
               class $VIEW(...):

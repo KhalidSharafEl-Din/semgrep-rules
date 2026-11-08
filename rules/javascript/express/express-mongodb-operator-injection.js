@@ -109,4 +109,10 @@ app.post('/lookup', async (req, res) => {
   res.status(400).end();
 });
 
+app.post('/login-normalised', async (req, res) => {
+  // ok: express-mongodb-operator-injection
+  const user = await User.findOne({ email: req.body.email.toLowerCase().trim() });
+  res.json({ found: Boolean(user) });
+});
+
 module.exports = app;

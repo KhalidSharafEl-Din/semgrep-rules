@@ -1,15 +1,26 @@
+import os
 import urllib.request
+from typing import Annotated
+from urllib.parse import urljoin
 
 import aiohttp
 import httpx
 import requests
-from fastapi import APIRouter, Depends, FastAPI, Request
+from fastapi import APIRouter, Depends, FastAPI, Query, Request
 from pydantic import BaseModel
 
 app = FastAPI()
 router = APIRouter()
 
 PARTNER_API = "https://partner.example.com/v1/"
+INVENTORY_API = os.environ["INVENTORY_API"]
+
+
+class Settings:
+    users_api: str = "https://users.internal.example.com"
+
+
+settings = Settings()
 
 
 class Webhook(BaseModel):
@@ -79,3 +90,35 @@ def status(settings: dict = Depends(get_settings)):
 def not_a_route(url: str):
     # ok: fastapi-ssrf
     return requests.get(url, timeout=5)
+
+
+@app.get("/preview-query")
+def preview_query(url: str = Query(..., description="Page to preview")):
+    # ruleid: fastapi-ssrf
+    return httpx.get(url).text
+
+
+@app.get("/annotated-status")
+def annotated_status(settings_dep: Annotated[dict, Depends(get_settings)]):
+    # ok: fastapi-ssrf
+    return httpx.get(settings_dep["status_url"]).status_code
+
+
+@app.get("/config/users/{user_id}")
+async def config_user(user_id: int):
+    async with httpx.AsyncClient() as client:
+        # ok: fastapi-ssrf
+        a = await client.get(f"{settings.users_api}/users/{user_id}")
+        # ok: fastapi-ssrf
+        b = await client.get(settings.users_api + "/users/" + str(user_id))
+        # ok: fastapi-ssrf
+        c = await client.get(urljoin(INVENTORY_API, f"items/{user_id}"))
+        # ok: fastapi-ssrf
+        d = await client.get("{}/users/{}".format(os.getenv("USERS_API"), user_id))
+    return [a.status_code, b.status_code, c.status_code, d.status_code]
+
+
+@app.get("/user-base")
+def user_base(base: str, user_id: int):
+    # ruleid: fastapi-ssrf
+    return requests.get(f"{base}/users/{user_id}", timeout=5).text

@@ -28,10 +28,10 @@ rules:
         - https://mongoosejs.com/docs/api/model.html#Model.create()
         - https://www.prisma.io/docs/orm/reference/prisma-client-reference#create
       registry-comparison: >-
-        The community registry has no mass assignment rule for JavaScript or TypeScript.
-        This rule tracks `req.body` into Mongoose, Sequelize and Prisma writes, and does
-        not report when the code picks named fields or parses the body with a schema
-        first.
+        The closest community rules, express-data-exfiltration and
+        insecure-object-assign, flag `Object.assign` with request data. Neither tracks
+        `req.body` into Mongoose, Sequelize or Prisma writes, and neither treats picked
+        fields or schema parsing as a fix.
     pattern-sources:
       - patterns:
           - pattern-either:
@@ -47,18 +47,25 @@ rules:
       - pattern: $SCHEMA.safeParse(...)
       - pattern: $SCHEMA.parseAsync(...)
       - pattern: matchedData(...)
+      # Joi rejects unknown keys by default.
+      - pattern: $SCHEMA.validateAsync(...)
     pattern-sinks:
       - patterns:
           - pattern-either:
               # Mongoose and Sequelize: the whole object as the document or the update.
               - patterns:
                   - pattern-either:
-                      - pattern: $MODEL.create($DATA, ...)
+                      - patterns:
+                          - pattern: $MODEL.create($DATA, ...)
+                          - pattern-not: "$MODEL.create($DATA, {..., fields: $FIELDS, ...})"
                       - pattern: $MODEL.insertMany($DATA, ...)
                       - pattern: $MODEL.build($DATA, ...)
                       - pattern: $MODEL.bulkCreate($DATA, ...)
                       - pattern: new $MODEL($DATA)
-                      - pattern: "$MODEL.update($DATA, {..., where: $W, ...})"
+                      - patterns:
+                          - pattern: "$MODEL.update($DATA, {..., where: $W, ...})"
+                          # Sequelize's fields option limits which columns are written.
+                          - pattern-not: "$MODEL.update($DATA, {..., fields: $FIELDS, ...})"
                       - pattern: $MODEL.findByIdAndUpdate($ID, $DATA, ...)
                       - pattern: $MODEL.findOneAndUpdate($FILTER, $DATA, ...)
                       - pattern: $MODEL.findOneAndReplace($FILTER, $DATA, ...)
@@ -96,8 +103,13 @@ rules:
               - pattern: "new $MODEL({..., ...$DATA, ...})"
               - pattern: "$MODEL.$OP({..., ...$DATA, ...}, ...)"
               - pattern: "$MODEL.$OP($FILTER, {..., ...$DATA, ...}, ...)"
-              - pattern: "$PRISMA.$TABLE.$OP({..., data: {..., ...$DATA, ...}, ...})"
           - metavariable-regex:
               metavariable: $MODEL
               regex: ^[A-Z][A-Za-z0-9_]*$
+          - focus-metavariable: $DATA
+      - patterns:
+          - pattern: "$PRISMA.$TABLE.$OP({..., data: {..., ...$DATA, ...}, ...})"
+          - metavariable-regex:
+              metavariable: $OP
+              regex: ^(create|createMany|update|updateMany|upsert)$
           - focus-metavariable: $DATA
