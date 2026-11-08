@@ -165,8 +165,15 @@ function successBranchThenNext(req, res, next) {
   });
 }
 
+function expiredOnlyTernary(req, res, next) {
+  // Known miss: the forward exemption also matches next(err) inside an arrow's
+  // expression body, so this expired-only ternary is not reported.
+  // todoruleid: jsonwebtoken-verify-callback-ignores-error
+  jwt.verify(req.cookies.session, PUBLIC_KEY, (err, p) => (err && err.name === 'TokenExpiredError' ? next(err) : next()));
+}
+
 app.get('/me', requireUser, (req, res) => res.json(req.user));
 app.get('/session', sessionInfo);
 app.get('/admin', requireAdmin, (req, res) => res.send('ok'));
 
-module.exports = { expiredOnlyForward, successBranchThenNext, expiredOnly, notNull, refreshSession, logsInBranch, payloadLogOnly, forwardsToNext, nodeCallback, logsOnly, ifElse, requireUserChecked, forwardError, payloadGuard, synchronous, checkToken };
+module.exports = { expiredOnlyTernary, expiredOnlyForward, successBranchThenNext, expiredOnly, notNull, refreshSession, logsInBranch, payloadLogOnly, forwardsToNext, nodeCallback, logsOnly, ifElse, requireUserChecked, forwardError, payloadGuard, synchronous, checkToken };
